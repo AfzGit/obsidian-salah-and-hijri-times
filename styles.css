@@ -1,1 +1,87 @@
 .salah-hijri-status{cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
+.salah-template-setting{display:block;}
+.salah-template-setting .setting-item-control{display:block;width:100%;max-width:none;margin-top:.5em;}
+.salah-template-input{display:block;width:100%;min-height:7em;resize:vertical;font-family:var(--font-monospace);}
+.salah-time-picker{display:flex;gap:var(--size-4-2);align-items:center;margin:1em 0;}
+.salah-time-picker select{min-width:5em;padding:var(--size-4-1);}
+
+.salah-schedule-modal{min-width:min(26rem,80vw);}
+.salah-schedule-row{display:grid;grid-template-columns:10ch 1ch max-content;align-items:baseline;gap:var(--size-4-2);font-family:var(--font-monospace);font-variant-numeric:tabular-nums;line-height:1.65;}
+.salah-schedule-name{white-space:pre;color:var(--text-normal);text-align:left;}
+.salah-schedule-colon{color:var(--text-normal);text-align:center;}
+.salah-schedule-times{white-space:nowrap;}
+.salah-prayer-fajr,.salah-prayer-dhuhr,.salah-prayer-asr,.salah-prayer-maghrib,.salah-prayer-isha{color:var(--interactive-accent);}
+.theme-light .salah-prayer-sunrise{color:#c2410c;}
+.theme-dark .salah-prayer-sunrise{color:#fbbf24;}
+.salah-schedule-meta{margin-top:1em;padding-top:.5em;border-top:1px solid var(--background-modifier-border);}
+.salah-schedule-custom{color:var(--text-muted);}
+
+
+.salah-time-modal{width:min(22rem,calc(100vw - 2rem));}
+.salah-time-modal-content{text-align:center;}
+.salah-wheel-picker{display:flex;align-items:center;justify-content:center;gap:.6rem;margin:1.5rem auto 1rem;}
+.salah-time-wheels{display:flex;align-items:center;gap:.25rem;}
+.salah-time-wheel{height:190px;width:4.25rem;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:none;scrollbar-width:none;box-sizing:border-box;mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);}
+.salah-time-wheel::-webkit-scrollbar{display:none;width:0;height:0;}
+.salah-time-wheel-spacer{height:76px;}
+.salah-time-wheel-item{height:38px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--text-muted);cursor:pointer;user-select:none;}
+.salah-time-wheel-item.is-selected{color:var(--text-normal);font-weight:var(--font-semibold);background:var(--background-modifier-hover);border-radius:var(--radius-s);}
+.salah-time-separator{font-size:1.4rem;font-variant-numeric:tabular-nums;}
+.salah-time-period{min-width:3.25rem;height:2.4rem;border:1px solid var(--background-modifier-border);border-radius:var(--radius-m);background:var(--background-secondary);color:var(--text-normal);}
+.salah-time-format{margin-bottom:1rem;padding:.45rem .9rem;border:1px solid var(--interactive-accent);border-radius:var(--radius-m);background:var(--background-secondary);color:var(--text-normal);font-weight:var(--font-medium);cursor:pointer;}
+.salah-time-period{margin-left:.25rem;}
+
+.salah-notification-modal{width:min(42rem,calc(100vw - 2rem));}
+.salah-notification-grid{display:grid;gap:.15rem;max-height:60vh;overflow:auto;}
+.salah-notification-row{display:grid;grid-template-columns:minmax(8rem,1fr) 8rem 9rem;align-items:center;gap:.75rem;padding:.35rem .5rem;border-bottom:1px solid var(--background-modifier-border);}
+.salah-notification-heading{position:sticky;top:0;z-index:1;background:var(--modal-background);font-weight:var(--font-semibold);}
+.salah-event-at-time{color:var(--interactive-accent);}
+.salah-event-in-advance{color:var(--text-error);}
+.salah-notification-cell{display:flex;align-items:center;justify-content:center;gap:.5rem;}
+
+@media (max-width: 560px){.salah-notification-row{grid-template-columns:minmax(5rem,1fr) 6rem 7rem;gap:.35rem;padding-inline:.25rem;}}
+
+.salah-calendar-modal{width:min(48rem,calc(100vw - 2rem));}
+.salah-calendar-controls{display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.salah-calendar-controls .setting-item{border:0;padding:0;flex:1;}
+.salah-calendar-navigation{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.5rem 0 1rem;}
+.salah-calendar-navigation strong{flex:1;text-align:center;font-size:var(--font-ui-large);}
+.salah-calendar-navigation button{min-width:2.25rem;min-height:2.25rem;font-size:1.5rem;}
+.salah-calendar-legend{display:flex;flex-wrap:wrap;gap:.4rem 1rem;margin:.5rem 0 1rem;color:var(--text-muted);font-size:var(--font-ui-smaller);}
+.salah-calendar-legend-monthly{color:var(--color-purple, #a78bfa);}
+.salah-calendar-legend-weekly{color:var(--color-green);}
+.salah-calendar-legend-friday{color:var(--color-orange);}
+.salah-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.25rem;}
+.salah-calendar-weekday{text-align:center;color:var(--text-muted);font-size:var(--font-ui-smaller);padding:.35rem 0;}
+.salah-calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;min-height:3.6rem;padding:.25rem;border:1px solid transparent;border-radius:var(--radius-m);background:var(--background-secondary);color:var(--text-normal);font-variant-numeric:tabular-nums;}
+.salah-calendar-gregorian{font-weight:var(--font-semibold);}
+.salah-calendar-hijri{font-size:var(--font-ui-smaller);color:var(--text-muted);}
+.salah-calendar-empty{min-height:3.6rem;}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-monthly-fast{border-color:var(--color-purple, #a78bfa);background-color:var(--background-modifier-hover);}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-weekly-fast{box-shadow:inset 0 -4px 0 var(--color-green);}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-friday{box-shadow:inset 0 -4px 0 var(--color-orange);}
+.salah-calendar-today{border-color:var(--interactive-accent);}
+.salah-calendar-day.is-selected{outline:2px solid var(--interactive-accent);}
+.salah-calendar-detail{margin-top:1.25rem;padding-top:.75rem;border-top:1px solid var(--background-modifier-border);}
+.salah-calendar-detail h3{font-size:var(--font-ui-medium);}
+.salah-calendar-times{display:grid;grid-template-columns:minmax(10rem,1fr) auto;gap:.25rem 1rem;max-width:24rem;font-variant-numeric:tabular-nums;}
+.salah-calendar-time-row{display:contents;}
+.salah-calendar-time-row span{padding:.2rem 0;}
+.salah-calendar-time-row span:last-child{text-align:right;font-family:var(--font-monospace);}
+
+@media(max-width:520px){.salah-calendar-day{min-height:3rem}.salah-calendar-controls{align-items:flex-start;flex-direction:column}.salah-calendar-legend{gap:.35rem .65rem}}
+.salah-status-hidden{display:none!important;}
+.salah-time-period-hidden{display:none!important;}
+.salah-hijri-countdown{color:var(--salah-countdown-color);}
+
+/* Add a gentle fill where color-mix is available; the border/stripe above remains the fallback. */
+@supports (background-color: color-mix(in srgb, black, transparent)){
+.salah-calendar-grid .salah-calendar-day.salah-calendar-monthly-fast{background-color:color-mix(in srgb,var(--color-purple, #a78bfa) 22%,var(--background-secondary));}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-weekly-fast{background-image:linear-gradient(color-mix(in srgb,var(--color-green) 12%,transparent),color-mix(in srgb,var(--color-green) 12%,transparent));}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-friday{background-image:linear-gradient(color-mix(in srgb,var(--color-orange) 12%,transparent),color-mix(in srgb,var(--color-orange) 12%,transparent));}
+}
+
+.salah-iqama-setting .setting-item-control{display:grid;grid-template-columns:9rem minmax(7rem,1fr) auto auto;gap:.5rem;width:min(30rem,58%);flex:0 0 min(30rem,58%);align-items:center;}
+.salah-iqama-setting .setting-item-control>.dropdown{grid-column:1;width:100%;margin:0;}
+.salah-iqama-setting .setting-item-control>input[type="text"]{grid-column:2;width:100%;}
+@media(max-width:600px){.salah-iqama-setting .setting-item-control{width:100%;flex-basis:100%;grid-template-columns:8rem minmax(4rem,1fr) auto auto;}}

@@ -1,12 +1,12 @@
 {
   "name": "salah-hijri-times",
-  "version": "1.0.0",
-  "description": "Prayer times, Iqama reminders, and Hijri date in the Obsidian status bar.",
+  "description": "Prayer times, Iqama reminders, and Hijri calendar for Obsidian.",
   "main": "main.js",
   "scripts": {
     "dev": "esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js --watch",
-    "build": "esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js",
-    "version": "node version-bump.mjs && git add manifest.json versions.json"
+    "build": "tsc --noEmit && esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js",
+    "bump:patch": "node version-bump.mjs",
+    "test": "esbuild tests/plugin.test.ts --bundle --platform=node --format=esm --outfile=.test-build/plugin.test.mjs && node --test .test-build/plugin.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -14,5 +14,6 @@
     "esbuild": "^0.24.0",
     "obsidian": "^1.7.2",
     "typescript": "^5.6.0"
-  }
+  },
+  "version": "1.0.0"
 }

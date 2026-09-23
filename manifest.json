@@ -1,9 +1,9 @@
 {
   "id": "salah-hijri-times",
-  "name": "Salah & Hijri Times",
+  "name": "Salah and Hijri Times",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Show the next prayer or Iqama countdown and today's prayer and Hijri times.",
-  "author": "",
+  "description": "Track daily prayer times, Iqama, and the Hijri date.",
+  "author": "AfzGit",
   "isDesktopOnly": false
 }

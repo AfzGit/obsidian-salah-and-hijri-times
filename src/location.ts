@@ -1,5 +1,7 @@
 import { Notice, requestUrl } from "obsidian";
-import { Coordinates } from "./types";
+import type { Coordinates } from "./types";
+import { validCoordinates } from "./coordinates";
+export { validCoordinates as valid } from "./coordinates";
 
 type IpWhoResponse = {
   success?: boolean;
@@ -18,21 +20,21 @@ type IpApiResponse = {
   country_name?: string;
 };
 
-export function valid(coordinates: Coordinates): boolean {
-  return Number.isFinite(coordinates.latitude) && coordinates.latitude >= -90 && coordinates.latitude <= 90 &&
-    Number.isFinite(coordinates.longitude) && coordinates.longitude >= -180 && coordinates.longitude <= 180;
-}
-
+/** Normalize either provider response and reject malformed/out-of-range coordinates. */
 function asLocation(data: IpWhoResponse | IpApiResponse) {
   const coordinates = { latitude: data.latitude ?? NaN, longitude: data.longitude ?? NaN };
-  if (!valid(coordinates)) throw new Error("The provider returned invalid coordinates.");
+  if (!validCoordinates(coordinates)) throw new Error("The provider returned invalid coordinates.");
   const place = data as IpWhoResponse & IpApiResponse;
   const name = [place.city, place.region, place.country || place.country_name].filter(Boolean).join(", ");
   return { coordinates, name: name || "Approximate IP location" };
 }
 
-/** Use Obsidian's native HTTP API to bypass renderer CORS restrictions. */
+/**
+ * Detect a coarse location from the network's public IP address.
+ * Uses Obsidian's native HTTP bridge for desktop/mobile CORS compatibility.
+ */
 export async function detectLocation(announceSuccess = true): Promise<{ coordinates: Coordinates; name: string }> {
+  // Providers are tried sequentially so one provider's outage does not block the fallback.
   const providers: Array<() => Promise<{ coordinates: Coordinates; name: string }>> = [
     async () => {
       const response = await requestUrl({ url: "https://ipwho.is/", method: "GET" });

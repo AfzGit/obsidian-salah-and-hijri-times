@@ -1,5 +1,5 @@
 import { Schedule } from "./types";
-import { countdown, clock } from "./time";
+import { countdown, clock, formatTime, parseTime } from "./time";
 
 export interface UpcomingEvent { name: string; time: string; delta: number }
 
@@ -12,10 +12,11 @@ export function renderStatusTemplate(
   next: UpcomingEvent,
   schedule: Schedule,
   countdownColor: string,
+  use24Hour = false,
 ): void {
   const values: Record<string, string> = {
     next: next.name,
-    time: clock(next.time),
+    time: use24Hour && parseTime(next.time) !== null ? formatTime(parseTime(next.time)!) : clock(next.time),
     countdown: countdown(next.delta),
     hijri: schedule.hijriNumeric,
     "hijri:dd/mm/yyyy": schedule.hijriNumeric,
@@ -39,7 +40,7 @@ export function renderStatusTemplate(
       const countdownNode = document.createElement("span");
       countdownNode.className = "salah-hijri-countdown";
       countdownNode.textContent = value;
-      countdownNode.style.color = countdownColor;
+      countdownNode.style.setProperty("--salah-countdown-color", countdownColor);
       fragment.append(countdownNode);
     } else {
       fragment.append(document.createTextNode(value));
