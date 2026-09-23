@@ -1,0 +1,1 @@
+{"compilerOptions":{"baseUrl":".","inlineSourceMap":true,"inlineSources":true,"module":"ESNext","target":"ES2018","allowJs":true,"noImplicitAny":true,"moduleResolution":"Bundler","strictNullChecks":true,"noImplicitThis":true,"noImplicitReturns":true,"skipLibCheck":true},"include":["**/*.ts"]}

@@ -1,0 +1,5 @@
+export function parseTime(s:string):number|null{const m=/^(\d{1,2}):(\d{2})$/.exec(s);if(!m)return null;const h=+m[1],n=+m[2];return h<24&&n<60?h*60+n:null}
+export function formatTime(n:number):string{n=(n%1440+1440)%1440;return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0")}
+export function clock(s:string):string{const n=parseTime(s);if(n===null)return s;const h=Math.floor(n/60);return (h%12||12)+":"+String(n%60).padStart(2,"0")+(h>=12?" pm":" am")}
+export function nextEvent(events:Array<{name:string;time:string}>,now:Date){let best:{name:string;time:string;delta:number}|null=null;for(const e of events){const n=parseTime(e.time);if(n===null)continue;const d=new Date(now);d.setHours(Math.floor(n/60),n%60,0,0);if(d<=now)d.setDate(d.getDate()+1);const delta=d.getTime()-now.getTime();if(!best||delta<best.delta)best={name:e.name,time:e.time,delta}}return best}
+export function countdown(ms:number):string{const n=Math.max(0,Math.floor(ms/60000)),h=Math.floor(n/60);return h?h+"h "+String(n%60).padStart(2,"0")+"m":n+"m"}
