@@ -1,5 +1,7 @@
 # Salah and Hijri Times
 
+![Bismillah](attachments/Bismillah.png)
+
 An Obsidian plugin built for daily prayer times, Iqama, Hijri dates, calendar, and configurable reminders.
 
 # Compatibility
