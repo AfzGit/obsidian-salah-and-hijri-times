@@ -389,7 +389,7 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
 var import_obsidian2 = require("obsidian");
 
 // src/coordinates.ts
-function validCoordinates2(coordinates) {
+function validCoordinates(coordinates) {
   return Number.isFinite(coordinates.latitude) && coordinates.latitude >= -90 && coordinates.latitude <= 90 && Number.isFinite(coordinates.longitude) && coordinates.longitude >= -180 && coordinates.longitude <= 180;
 }
 
@@ -397,7 +397,7 @@ function validCoordinates2(coordinates) {
 function asLocation(data) {
   var _a, _b;
   const coordinates = { latitude: (_a = data.latitude) != null ? _a : NaN, longitude: (_b = data.longitude) != null ? _b : NaN };
-  if (!validCoordinates2(coordinates)) throw new Error("The provider returned invalid coordinates.");
+  if (!validCoordinates(coordinates)) throw new Error("The provider returned invalid coordinates.");
   const place = data;
   const name = [place.city, place.region, place.country || place.country_name].filter(Boolean).join(", ");
   return { coordinates, name: name || "Approximate IP location" };

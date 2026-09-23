@@ -2,7 +2,7 @@
 import * as import_obsidian5 from "obsidian";
 import { CALCULATION_METHODS } from "./src/calculation-methods";
 import { PrayerCalendarModal } from "./src/calendar";
-import { detectLocation, valid } from "./src/location";
+import { detectLocation, valid as validCoordinates } from "./src/location";
 import { LocationSearchModal } from "./src/location-picker";
 import { addIqama as buildConfiguredEvents, loadSchedule } from "./src/prayer-times";
 import { renderStatusTemplate } from "./src/status-template";
