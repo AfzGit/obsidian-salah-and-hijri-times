@@ -61,7 +61,7 @@ export async function loadSchedule(settings: Settings, now = new Date()): Promis
     hijri = (await requestSchedule(hijriUrl)).data.date.hijri;
   }
 
-  // Maghrib is the sunset prayer. Sunset remains a possible Iqama rule, not a second prayer row.
+  // Maghrib is the sunset prayer and is the only evening prayer row.
   const prayers: Record<string, string> = {
     Fajr: timings.Fajr,
     Sunrise: timings.Sunrise,

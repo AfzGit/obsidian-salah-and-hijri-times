@@ -18,7 +18,7 @@ Pure calculations are kept independent from Obsidian APIs so they can run under 
 
 The AlAdhan API supplies the prayer times and Hijri date. The plugin sends the configured calculation method and coordinates. The plugin evaluates Maghrib using the saved location timezone. It requests Hijri conversion for the location-local Gregorian date shifted by the configured offset and optional post-Maghrib day. This avoids relying on the timings endpoint's `adjustment` query parameter (which returned the same Hijri date for -1, 0, and +1 in live checks) and preserves API-defined 29/30-day month transitions. Prayer timings remain from the unshifted local Gregorian date.
 
-Sunset is not a separate prayer event in the schedule. Maghrib is used as sunset; an optional legacy Sunset Iqama rule remains available and uses Maghrib as its offset base.
+Sunset is not a separate prayer event in the schedule. Maghrib is the sunset prayer and is the only evening prayer/Iqama entry.
 
 Last Third is calculated two-thirds of the way from Maghrib to the next Fajr. Iqama rules can be disabled, fixed, or offset; Tahajjud Qiyam can use either Last Third or Fajr as its base.
 

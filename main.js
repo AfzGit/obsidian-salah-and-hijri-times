@@ -540,8 +540,8 @@ function buildConfiguredEvents(schedule, settings) {
     kind: "prayer"
   }));
   for (const [name, rule] of Object.entries(settings.iqama)) {
-    if (rule.mode === "disabled") continue;
-    const baseName = rule.mode === "offset" && name === "Tahajjud" && rule.from === "Fajr" ? "Fajr" : name === "Sunset" ? "Maghrib" : name;
+    if (name === "Sunset" || rule.mode === "disabled") continue;
+    const baseName = rule.mode === "offset" && name === "Tahajjud" && rule.from === "Fajr" ? "Fajr" : name;
     const base = schedule.prayers.find((prayer) => prayer.name === baseName);
     const time = rule.mode === "fixed" ? rule.time : rule.mode === "offset" && base ? formatTime(((_a = parseTime(base.time)) != null ? _a : 0) + rule.minutes) : "";
     if (time) events.push({ name: name === "Sunrise" ? "Duha prayer" : name === "Tahajjud" ? "Tahajjud Qiyam" : `${name} Iqama`, time, kind: "iqama" });
@@ -689,7 +689,6 @@ var DEFAULTS = {
     Dhuhr: { mode: "disabled" },
     Asr: { mode: "disabled" },
     Maghrib: { mode: "offset", minutes: 5 },
-    Sunset: { mode: "disabled" },
     Isha: { mode: "disabled" },
     Tahajjud: { mode: "disabled" }
   }
@@ -705,7 +704,7 @@ function addIqamaRuleOptions(dropdown, prayer) {
   if (prayer === "Tahajjud") {
     dropdown.addOption("offset-last-third", "Offset from Last Third").addOption("offset-fajr", "Offset from Fajr");
   } else {
-    const base = prayer === "Sunset" ? "Maghrib" : prayerDisplayName(prayer);
+    const base = prayerDisplayName(prayer);
     dropdown.addOption("offset", "Offset from " + base);
   }
   return dropdown;
@@ -728,7 +727,7 @@ function displayClock(time, use24Hour) {
 }
 function scheduleLines(schedule, events, use24Hour) {
   const rows = schedule.prayers.map((prayer) => {
-    const iqama = events.find((event) => event.kind === "iqama" && event.name === iqamaEventName(prayer.name)) || (prayer.name === "Maghrib" ? events.find((event) => event.kind === "iqama" && event.name === iqamaEventName("Sunset")) : void 0);
+    const iqama = events.find((event) => event.kind === "iqama" && event.name === iqamaEventName(prayer.name));
     return prayerDisplayName(prayer.name) + ": " + displayClock(prayer.time, use24Hour) + " [" + (iqama ? displayClock(iqama.time, use24Hour) : "\u2014") + "]";
   });
   rows.push(...events.filter((event) => event.kind === "custom").map((event) => event.name + ": " + displayClock(event.time, use24Hour)));
@@ -751,6 +750,7 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     const saved = await this.loadData() || {};
     this.settings = { ...DEFAULTS, ...saved };
     this.settings.iqama = { ...DEFAULTS.iqama, ...this.settings.iqama };
+    delete this.settings.iqama.Sunset;
     this.settings.customTimes = this.settings.customTimes || [];
     this.settings.notifiedTimeKeys = this.settings.notifiedTimeKeys || [];
     this.settings.eventNotifications = this.settings.eventNotifications || {};
@@ -1062,7 +1062,7 @@ var IqamaEditorModal = class extends import_obsidian5.Modal {
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: "Update Iqama times" });
     this.contentEl.createEl("p", { text: "Set each time as disabled, a fixed time, or minutes offset from its prayer." });
-    for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Sunset", "Maghrib", "Isha", "Tahajjud"]) {
+    for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Tahajjud"]) {
       const rule = updated[prayer] || { mode: "disabled" };
       const label = prayer === "Sunrise" ? "Duha prayer" : prayer === "Tahajjud" ? "Tahajjud Qiyam" : prayer + " Iqama";
       const row = new import_obsidian5.Setting(this.contentEl).setName(label);
@@ -1517,7 +1517,7 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
   addIqamaSettings(container) {
     new import_obsidian5.Setting(container).setName("Iqama times").setHeading();
     container.createEl("p", { text: "Choose a fixed time or offset; negative offsets are allowed." });
-    for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Sunset", "Maghrib", "Isha", "Tahajjud"]) {
+    for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Tahajjud"]) {
       const rule = this.plugin.settings.iqama[prayer] || { mode: "disabled" };
       const row = new import_obsidian5.Setting(container).setName(prayer === "Sunrise" ? "Duha prayer" : prayer === "Tahajjud" ? "Tahajjud Qiyam" : prayer + " Iqama").addDropdown((dropdown) => addIqamaRuleOptions(dropdown, prayer).setValue(iqamaRuleSelection(prayer, rule)).onChange((value) => {
         this.plugin.settings.iqama[prayer] = iqamaRuleForSelection(prayer, value, rule);

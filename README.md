@@ -60,7 +60,7 @@ Custom daily times and fixed Iqama entries accept 24-hour `HH:mm` values or the 
 
 Prayer times and calendar dates are provided by the [AlAdhan API](https://aladhan.com/prayer-times-api), using the selected calculation method and saved coordinates. Hijri rollover compares Maghrib with the saved location's local clock and requests the corresponding location-local Gregorian date, so it remains correct when the device timezone differs from the prayer location. For offsets and post-Maghrib rollover, the plugin requests the service conversion for the shifted Gregorian day, preserving its actual Hijri month lengths. The calendar displays the service's Hijri dates with the configured day offset. Hijri rollover in the daily schedule can occur after Maghrib or at midnight.
 
-Sunset is represented by Maghrib in the prayer schedule. A separate Sunset Iqama rule remains available and uses Maghrib as its base time.
+Sunset is represented by Maghrib in the prayer schedule; there is no separate Sunset Iqama because Maghrib is the sunset prayer.
 
 # Development checks
 

@@ -3,8 +3,7 @@ import { formatTime, parseTime } from "./time";
 
 /**
  * Convert a calculated schedule and saved rules into timeline events.
- * A Sunset Iqama remains configurable, but it is based on Maghrib because
- * the service's Maghrib time is the sunset prayer time used by this plugin.
+ * Maghrib is the sunset prayer and is the only evening prayer/Iqama entry.
  */
 export function buildConfiguredEvents(schedule: Schedule, settings: Settings) {
   const events: Array<{ name: string; time: string; kind: "prayer" | "iqama" | "custom" }> = schedule.prayers.map(prayer => ({
@@ -14,10 +13,10 @@ export function buildConfiguredEvents(schedule: Schedule, settings: Settings) {
   }));
 
   for (const [name, rule] of Object.entries(settings.iqama)) {
-    if (rule.mode === "disabled") continue;
+    if (name === "Sunset" || rule.mode === "disabled") continue;
     const baseName = rule.mode === "offset" && name === "Tahajjud" && rule.from === "Fajr"
       ? "Fajr"
-      : name === "Sunset" ? "Maghrib" : name;
+      : name;
     const base = schedule.prayers.find(prayer => prayer.name === baseName);
     const time = rule.mode === "fixed"
       ? rule.time

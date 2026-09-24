@@ -118,12 +118,11 @@ describe("configured prayer events", () => {
     },
     customTimes: [{ name: " Midnight ", time: "00:00" }, { name: "Bad", time: "24:00" }],
   };
-  it("builds configured Iqama and custom events without duplicating Sunset prayer", () => {
+  it("builds configured Iqama and custom events without a separate Sunset Iqama", () => {
     const events = buildConfiguredEvents(schedule, settings);
-    assert.equal(events.filter(event => event.kind === "prayer" && event.name === "Sunset").length, 0);
     assert.ok(events.some(event => event.name === "Last Third" && event.time === "02:00"));
     assert.ok(events.some(event => event.name === "Duha prayer" && event.time === "06:20"));
-    assert.ok(events.some(event => event.name === "Sunset Iqama" && event.time === "18:05"));
+    assert.equal(events.some(event => event.name === "Sunset Iqama"), false);
     assert.ok(events.some(event => event.name === "Tahajjud Qiyam" && event.time === "04:55"));
     assert.ok(events.some(event => event.name === "Isha Iqama" && event.time === "20:30"));
     assert.ok(events.some(event => event.name === "Midnight" && event.time === "00:00"));
