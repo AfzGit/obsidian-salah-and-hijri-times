@@ -10,6 +10,8 @@ export interface Settings {
   coordinates: Coordinates | null;
   locationName: string;
   calculationMethod: number;
+  /** Per-prayer offsets in minutes; optional for backwards-compatible saved/test settings. */
+  prayerTimeOffsets?: Record<string, number>;
   hijriOffset: number;
   hijriRollover: "maghrib" | "midnight";
   calendarMonthStyle: "hijri" | "gregorian";

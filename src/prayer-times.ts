@@ -45,9 +45,14 @@ export async function loadSchedule(settings: Settings, now = new Date()): Promis
     payload = await requestSchedule(url);
   }
   const timings = payload.data.timings;
+  const adjustedTime = (name: string): string => {
+    const base = parseTime(timings[name]);
+    const offset = settings.prayerTimeOffsets?.[name] || 0;
+    return base === null ? timings[name] : formatTime(base + offset);
+  };
   // Compare the location's current wall clock to that location's Maghrib.
   const nowMinutes = minutesAtLocation(now, payload.data.meta?.timezone || payload.data.meta?.timezonestring);
-  const hijriDayOffset = hijriAdjustmentForNow(settings.hijriOffset, settings.hijriRollover, nowMinutes, timings.Maghrib);
+  const hijriDayOffset = hijriAdjustmentForNow(settings.hijriOffset, settings.hijriRollover, nowMinutes, adjustedTime("Maghrib"));
   let hijri = payload.data.date.hijri;
   if (hijriDayOffset !== 0) {
     // Some API deployments ignore the documented adjustment query parameter. Requesting
@@ -63,15 +68,15 @@ export async function loadSchedule(settings: Settings, now = new Date()): Promis
 
   // Maghrib is the sunset prayer and is the only evening prayer row.
   const prayers: Record<string, string> = {
-    Fajr: timings.Fajr,
-    Sunrise: timings.Sunrise,
-    Dhuhr: timings.Dhuhr,
-    Asr: timings.Asr,
-    Maghrib: timings.Maghrib,
-    Isha: timings.Isha,
+    Fajr: adjustedTime("Fajr"),
+    Sunrise: adjustedTime("Sunrise"),
+    Dhuhr: adjustedTime("Dhuhr"),
+    Asr: adjustedTime("Asr"),
+    Maghrib: adjustedTime("Maghrib"),
+    Isha: adjustedTime("Isha"),
   };
-  const maghrib = parseTime(timings.Maghrib);
-  const fajr = parseTime(timings.Fajr);
+  const maghrib = parseTime(adjustedTime("Maghrib"));
+  const fajr = parseTime(adjustedTime("Fajr"));
   if (maghrib !== null && fajr !== null) {
     // Last Third begins two-thirds through the night from Maghrib until the next Fajr.
     prayers.Tahajjud = formatTime(Math.floor(maghrib + (fajr + 1440 - maghrib) * 2 / 3));
@@ -85,7 +90,7 @@ export async function loadSchedule(settings: Settings, now = new Date()): Promis
     hijriDate: `${day} ${HIJRI_MONTHS[month - 1]} ${year} AH`,
     hijriNumeric: `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`,
     hijriMonth: String(month).padStart(2, "0"),
-    maghrib: timings.Maghrib,
+    maghrib: adjustedTime("Maghrib"),
     locationName: settings.locationName,
   };
 }

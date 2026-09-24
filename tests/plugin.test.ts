@@ -117,6 +117,7 @@ describe("configured prayer events", () => {
       Isha: { mode: "fixed", time: "20:30" },
     },
     customTimes: [{ name: " Midnight ", time: "00:00" }, { name: "Bad", time: "24:00" }],
+    prayerTimeOffsets: { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0, },
   };
   it("builds configured Iqama and custom events without a separate Sunset Iqama", () => {
     const events = buildConfiguredEvents(schedule, settings);

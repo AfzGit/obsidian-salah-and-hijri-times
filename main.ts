@@ -12,6 +12,7 @@ var DEFAULTS = {
   coordinates: null,
   locationName: "",
   calculationMethod: 1,
+  prayerTimeOffsets: { Fajr: 0, Sunrise: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0 },
   hijriOffset: 0,
   hijriRollover: "maghrib",
   calendarMonthStyle: "hijri",
@@ -100,6 +101,7 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     const saved = await this.loadData() || {};
     this.settings = { ...DEFAULTS, ...saved };
     this.settings.iqama = { ...DEFAULTS.iqama, ...this.settings.iqama };
+    this.settings.prayerTimeOffsets = { ...DEFAULTS.prayerTimeOffsets, ...(this.settings.prayerTimeOffsets || {}) };
     delete this.settings.iqama.Sunset;
     this.settings.customTimes = this.settings.customTimes || [];
     this.settings.notifiedTimeKeys = this.settings.notifiedTimeKeys || [];
@@ -748,6 +750,16 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
       });
       hijriOffsetInput = text.inputEl;
     }).addButton((button) => button.setButtonText("-").setTooltip("Decrease Hijri offset by one day").onClick(() => changeHijriOffset(-1))).addButton((button) => button.setButtonText("+").setTooltip("Increase Hijri offset by one day").onClick(() => changeHijriOffset(1)));
+    new import_obsidian5.Setting(container).setName("Prayer time offsets (minutes)").setDesc("Adjust fetched provider times per prayer. Positive values delay a prayer; negative values advance it.").setHeading();
+    for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"]) {
+      new import_obsidian5.Setting(container).setName(prayer + " offset").setDesc("Minutes added to the online provider time.").addText((text) => text.setPlaceholder("0").setValue(String(this.plugin.settings.prayerTimeOffsets[prayer] || 0)).onChange((value) => {
+        const offset = Number(value);
+        if (Number.isInteger(offset) && Math.abs(offset) <= 180) {
+          this.plugin.settings.prayerTimeOffsets[prayer] = offset;
+          void this.plugin.saveAndRefresh();
+        }
+      }));
+    }
     new import_obsidian5.Setting(container).setName("Hijri rollover").setDesc("Use the location's Maghrib or local midnight.").addDropdown((dropdown) => dropdown.addOption("maghrib", "After Maghrib").addOption("midnight", "At midnight").setValue(this.plugin.settings.hijriRollover).onChange((value) => {
       this.plugin.settings.hijriRollover = value;
       void this.plugin.saveAndRefresh();

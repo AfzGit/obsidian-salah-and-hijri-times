@@ -581,8 +581,14 @@ async function loadSchedule(settings, now = /* @__PURE__ */ new Date()) {
     payload = await requestSchedule(url);
   }
   const timings = payload.data.timings;
+  const adjustedTime = (name) => {
+    var _a2;
+    const base = parseTime(timings[name]);
+    const offset = ((_a2 = settings.prayerTimeOffsets) == null ? void 0 : _a2[name]) || 0;
+    return base === null ? timings[name] : formatTime(base + offset);
+  };
   const nowMinutes = minutesAtLocation(now, ((_c = payload.data.meta) == null ? void 0 : _c.timezone) || ((_d = payload.data.meta) == null ? void 0 : _d.timezonestring));
-  const hijriDayOffset = hijriAdjustmentForNow(settings.hijriOffset, settings.hijriRollover, nowMinutes, timings.Maghrib);
+  const hijriDayOffset = hijriAdjustmentForNow(settings.hijriOffset, settings.hijriRollover, nowMinutes, adjustedTime("Maghrib"));
   let hijri = payload.data.date.hijri;
   if (hijriDayOffset !== 0) {
     const hijriDate = shiftGregorianDate(locationDate, hijriDayOffset);
@@ -593,15 +599,15 @@ async function loadSchedule(settings, now = /* @__PURE__ */ new Date()) {
     hijri = (await requestSchedule(hijriUrl)).data.date.hijri;
   }
   const prayers = {
-    Fajr: timings.Fajr,
-    Sunrise: timings.Sunrise,
-    Dhuhr: timings.Dhuhr,
-    Asr: timings.Asr,
-    Maghrib: timings.Maghrib,
-    Isha: timings.Isha
+    Fajr: adjustedTime("Fajr"),
+    Sunrise: adjustedTime("Sunrise"),
+    Dhuhr: adjustedTime("Dhuhr"),
+    Asr: adjustedTime("Asr"),
+    Maghrib: adjustedTime("Maghrib"),
+    Isha: adjustedTime("Isha")
   };
-  const maghrib = parseTime(timings.Maghrib);
-  const fajr = parseTime(timings.Fajr);
+  const maghrib = parseTime(adjustedTime("Maghrib"));
+  const fajr = parseTime(adjustedTime("Fajr"));
   if (maghrib !== null && fajr !== null) {
     prayers.Tahajjud = formatTime(Math.floor(maghrib + (fajr + 1440 - maghrib) * 2 / 3));
   }
@@ -613,7 +619,7 @@ async function loadSchedule(settings, now = /* @__PURE__ */ new Date()) {
     hijriDate: `${day} ${HIJRI_MONTHS2[month - 1]} ${year} AH`,
     hijriNumeric: `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`,
     hijriMonth: String(month).padStart(2, "0"),
-    maghrib: timings.Maghrib,
+    maghrib: adjustedTime("Maghrib"),
     locationName: settings.locationName
   };
 }
@@ -662,6 +668,7 @@ var DEFAULTS = {
   coordinates: null,
   locationName: "",
   calculationMethod: 1,
+  prayerTimeOffsets: { Fajr: 0, Sunrise: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0 },
   hijriOffset: 0,
   hijriRollover: "maghrib",
   calendarMonthStyle: "hijri",
@@ -750,6 +757,7 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     const saved = await this.loadData() || {};
     this.settings = { ...DEFAULTS, ...saved };
     this.settings.iqama = { ...DEFAULTS.iqama, ...this.settings.iqama };
+    this.settings.prayerTimeOffsets = { ...DEFAULTS.prayerTimeOffsets, ...this.settings.prayerTimeOffsets || {} };
     delete this.settings.iqama.Sunset;
     this.settings.customTimes = this.settings.customTimes || [];
     this.settings.notifiedTimeKeys = this.settings.notifiedTimeKeys || [];
@@ -1398,6 +1406,16 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
       });
       hijriOffsetInput = text.inputEl;
     }).addButton((button) => button.setButtonText("-").setTooltip("Decrease Hijri offset by one day").onClick(() => changeHijriOffset(-1))).addButton((button) => button.setButtonText("+").setTooltip("Increase Hijri offset by one day").onClick(() => changeHijriOffset(1)));
+    new import_obsidian5.Setting(container).setName("Prayer time offsets (minutes)").setDesc("Adjust fetched provider times per prayer. Positive values delay a prayer; negative values advance it.").setHeading();
+    for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"]) {
+      new import_obsidian5.Setting(container).setName(prayer + " offset").setDesc("Minutes added to the online provider time.").addText((text) => text.setPlaceholder("0").setValue(String(this.plugin.settings.prayerTimeOffsets[prayer] || 0)).onChange((value) => {
+        const offset = Number(value);
+        if (Number.isInteger(offset) && Math.abs(offset) <= 180) {
+          this.plugin.settings.prayerTimeOffsets[prayer] = offset;
+          void this.plugin.saveAndRefresh();
+        }
+      }));
+    }
     new import_obsidian5.Setting(container).setName("Hijri rollover").setDesc("Use the location's Maghrib or local midnight.").addDropdown((dropdown) => dropdown.addOption("maghrib", "After Maghrib").addOption("midnight", "At midnight").setValue(this.plugin.settings.hijriRollover).onChange((value) => {
       this.plugin.settings.hijriRollover = value;
       void this.plugin.saveAndRefresh();
