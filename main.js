@@ -192,7 +192,13 @@ function fastingMarkers(date, hijriDay) {
     jummah: weekday === 5
   };
 }
+function calculateMidnight(maghrib, fajr) {
+  return calculateNightTime(maghrib, fajr, 1 / 2);
+}
 function calculateLastThird(maghrib, fajr) {
+  return calculateNightTime(maghrib, fajr, 2 / 3);
+}
+function calculateNightTime(maghrib, fajr, fraction) {
   const minutes = (value) => {
     const match = /^(\d{1,2}):(\d{2})(?:\s|$)/.exec(value);
     if (!match) return null;
@@ -204,7 +210,7 @@ function calculateLastThird(maghrib, fajr) {
   const morning = minutes(fajr);
   if (evening === null || morning === null) return null;
   const nextMorning = morning + (morning <= evening ? 1440 : 0);
-  return formatClock(Math.floor(evening + (nextMorning - evening) * 2 / 3));
+  return formatClock(Math.floor(evening + (nextMorning - evening) * fraction));
 }
 function formatClock(totalMinutes) {
   const wrapped = (totalMinutes % 1440 + 1440) % 1440;
@@ -539,7 +545,10 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
       if (markers.monthly) cell.addClass("salah-calendar-monthly-fast");
       if (markers.weekly) cell.addClass("salah-calendar-weekly-fast");
       if (markers.jummah) cell.addClass("salah-calendar-friday");
-      if (this.isToday(entry.gregorian)) cell.addClass("salah-calendar-today");
+      if (this.isToday(entry.gregorian)) {
+        cell.addClass("salah-calendar-today");
+        cell.setAttr("aria-current", "date");
+      }
       cell.addEventListener("click", () => {
         grid.querySelectorAll(".salah-calendar-day.is-selected").forEach((selected) => selected.removeClass("is-selected"));
         cell.addClass("is-selected");
@@ -578,7 +587,15 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     const maghrib = entry.api.timings.Maghrib;
     const fajr = entry.api.timings.Fajr;
     if (!maghrib || !fajr) return;
-    const lastThird = calculateLastThird(this.adjustedPrayerTime("Maghrib", maghrib), this.adjustedPrayerTime("Fajr", fajr));
+    const adjustedMaghrib = this.adjustedPrayerTime("Maghrib", maghrib);
+    const adjustedFajr = this.adjustedPrayerTime("Fajr", fajr);
+    const midnight = calculateMidnight(adjustedMaghrib, adjustedFajr);
+    const lastThird = calculateLastThird(adjustedMaghrib, adjustedFajr);
+    if (midnight) {
+      const row2 = rows.createDiv({ cls: "salah-calendar-time-row" });
+      row2.createSpan({ text: "Midnight" });
+      row2.createSpan({ text: displayTime(midnight, this.settings.use24HourTime) });
+    }
     if (!lastThird) return;
     const row = rows.createDiv({ cls: "salah-calendar-time-row" });
     row.createSpan({ text: "Last Third" });
@@ -593,38 +610,65 @@ var import_obsidian2 = require("obsidian");
 function validCoordinates(coordinates) {
   return Number.isFinite(coordinates.latitude) && coordinates.latitude >= -90 && coordinates.latitude <= 90 && Number.isFinite(coordinates.longitude) && coordinates.longitude >= -180 && coordinates.longitude <= 180;
 }
+function parseIpLocation(data) {
+  const toNumber = (value) => typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  const coordinates = { latitude: toNumber(data.latitude), longitude: toNumber(data.longitude) };
+  if (!validCoordinates(coordinates)) throw new Error("The provider returned invalid coordinates.");
+  if (coordinates.latitude === 0 && coordinates.longitude === 0) throw new Error("The provider returned a placeholder location.");
+  const name = [data.city, data.region, data.country || data.country_name].filter(Boolean).join(", ");
+  return { coordinates, name: name || "Approximate IP location" };
+}
 
 // src/location.ts
-function asLocation(data) {
-  var _a, _b;
-  const coordinates = { latitude: (_a = data.latitude) != null ? _a : NaN, longitude: (_b = data.longitude) != null ? _b : NaN };
-  if (!validCoordinates(coordinates)) throw new Error("The provider returned invalid coordinates.");
-  const place = data;
-  const name = [place.city, place.region, place.country || place.country_name].filter(Boolean).join(", ");
-  return { coordinates, name: name || "Approximate IP location" };
+var PROVIDER_TIMEOUT_MS = 1e4;
+function withTimeout(promise, provider) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${provider} timed out after ${PROVIDER_TIMEOUT_MS / 1e3} seconds.`)),
+      PROVIDER_TIMEOUT_MS
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 async function detectLocation(announceSuccess = true) {
   const providers = [
-    async () => {
-      const response = await (0, import_obsidian2.requestUrl)({ url: "https://ipwho.is/", method: "GET" });
-      const data = response.json;
-      if (data.success === false) throw new Error("IPWho could not locate this network.");
-      return asLocation(data);
+    {
+      name: "ipwho.is",
+      load: async () => {
+        const response = await (0, import_obsidian2.requestUrl)({ url: "https://ipwho.is/", method: "GET" });
+        if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}.`);
+        const data = response.json;
+        if ((data == null ? void 0 : data.success) === false) throw new Error("ipwho.is could not locate this network.");
+        return parseIpLocation(data);
+      }
     },
-    async () => {
-      const response = await (0, import_obsidian2.requestUrl)({ url: "https://ipapi.co/json/", method: "GET" });
-      const data = response.json;
-      if (data.error) throw new Error("ipapi could not locate this network.");
-      return asLocation(data);
+    {
+      name: "ipapi.co",
+      load: async () => {
+        const response = await (0, import_obsidian2.requestUrl)({ url: "https://ipapi.co/json/", method: "GET" });
+        if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}.`);
+        const data = response.json;
+        if (data == null ? void 0 : data.error) throw new Error(typeof data.reason === "string" ? data.reason : "ipapi.co could not locate this network.");
+        return parseIpLocation(data);
+      }
     }
   ];
   for (const provider of providers) {
     try {
-      const result = await provider();
+      const result = await withTimeout(provider.load(), provider.name);
       if (announceSuccess) new import_obsidian2.Notice("Approximate location detected: " + result.name + ". Review it in settings.", 1e4);
       return result;
     } catch (error) {
-      console.warn("Salah & Hijri Times IP location provider failed.", error);
+      console.warn(`Salah & Hijri Times: ${provider.name} location lookup failed.`, error);
     }
   }
   new import_obsidian2.Notice("Automatic location detection failed. Enter latitude and longitude in plugin settings.", 1e4);
@@ -755,7 +799,10 @@ async function loadSchedule(settings, now = /* @__PURE__ */ new Date()) {
   const maghrib = parseTime(adjustedTime("Maghrib"));
   const fajr = parseTime(adjustedTime("Fajr"));
   if (maghrib !== null && fajr !== null) {
-    prayers.Tahajjud = formatTime(Math.floor(maghrib + (fajr + 1440 - maghrib) * 2 / 3));
+    const midnight = calculateMidnight(adjustedTime("Maghrib"), adjustedTime("Fajr"));
+    const lastThird = calculateLastThird(adjustedTime("Maghrib"), adjustedTime("Fajr"));
+    if (midnight) prayers.Midnight = midnight;
+    if (lastThird) prayers.Tahajjud = lastThird;
   }
   const day = Number(hijri.day);
   const month = hijri.month.number;
@@ -982,6 +1029,7 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
       await this.refreshSchedule();
     } catch (error) {
       console.warn("Salah & Hijri Times location lookup failed.", error);
+      this.renderStatus();
     } finally {
       this.loadingLocation = false;
     }
@@ -1237,6 +1285,7 @@ var ScheduleModal = class extends import_obsidian5.Modal {
     const actions = this.contentEl.createDiv({ cls: "salah-schedule-actions" });
     new import_obsidian5.ButtonComponent(actions).setButtonText("Update Iqama times").onClick(() => this.executeCommand("edit-iqama-times"));
     new import_obsidian5.ButtonComponent(actions).setButtonText("Set Hijri offset").onClick(() => this.executeCommand("set-hijri-offset"));
+    new import_obsidian5.ButtonComponent(actions).setButtonText("View calendar").onClick(() => this.executeCommand("open-prayer-calendar"));
   }
 };
 var HijriOffsetModal = class extends import_obsidian5.Modal {
@@ -1331,7 +1380,7 @@ function eventNotificationKey(event) {
   return event.kind + "|" + event.name;
 }
 function configuredFallbackEvents(settings) {
-  const events = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Tahajjud"].map((name) => ({ name: prayerDisplayName(name), time: "00:00", kind: "prayer" }));
+  const events = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Midnight", "Tahajjud"].map((name) => ({ name: prayerDisplayName(name), time: "00:00", kind: "prayer" }));
   for (const [name, rule] of Object.entries(settings.iqama)) {
     if (rule.mode !== "disabled") events.push({ name: iqamaEventName(name), time: rule.mode === "fixed" ? rule.time : "00:00", kind: "iqama" });
   }

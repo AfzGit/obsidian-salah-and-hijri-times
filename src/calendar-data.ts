@@ -53,8 +53,21 @@ export function fastingMarkers(date: Date, hijriDay: number): FastingMarkers {
   };
 }
 
+/** Compute Islamic midnight: halfway from Maghrib to the next Fajr. */
+export function calculateMidnight(maghrib: string, fajr: string): string | null {
+  return calculateNightTime(maghrib, fajr, 1 / 2);
+}
+
 /** Compute Last Third from API clock values, allowing timezone annotations after HH:mm. */
 export function calculateLastThird(maghrib: string, fajr: string): string | null {
+  return calculateNightTime(maghrib, fajr, 2 / 3);
+}
+
+/**
+ * Return a point a given fraction of the way through the night.
+ * The night crosses midnight, so Fajr is moved to the next day when needed.
+ */
+function calculateNightTime(maghrib: string, fajr: string, fraction: number): string | null {
   const minutes = (value: string): number | null => {
     const match = /^(\d{1,2}):(\d{2})(?:\s|$)/.exec(value);
     if (!match) return null;
@@ -65,9 +78,8 @@ export function calculateLastThird(maghrib: string, fajr: string): string | null
   const evening = minutes(maghrib);
   const morning = minutes(fajr);
   if (evening === null || morning === null) return null;
-  // The night crosses midnight; Last Third begins after two thirds of its duration.
   const nextMorning = morning + (morning <= evening ? 1440 : 0);
-  return formatClock(Math.floor(evening + (nextMorning - evening) * 2 / 3));
+  return formatClock(Math.floor(evening + (nextMorning - evening) * fraction));
 }
 
 /** Keep this tiny formatter local to the pure calendar-data module. */

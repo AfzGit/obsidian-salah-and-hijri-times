@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { countdown, formatTime, nextEvent, parseTime } from "../src/time";
 import { dateAtLocation, hijriAdjustmentForNow, minutesAtLocation, shiftGregorianDate } from "../src/hijri-date";
-import { calculateLastThird, fastingMarkers, mapCalendarDates, parseCalendarDate, type CalendarApiDate } from "../src/calendar-data";
+import { calculateLastThird, calculateMidnight, fastingMarkers, mapCalendarDates, parseCalendarDate, type CalendarApiDate } from "../src/calendar-data";
 import { buildConfiguredEvents } from "../src/schedule-events";
-import { validCoordinates } from "../src/coordinates";
+import { parseIpLocation, validCoordinates } from "../src/coordinates";
 import { TIME_WHEEL_ROW_HEIGHT, TIME_WHEEL_SPACER_ROWS, TIME_WHEEL_VISIBLE_ROWS, clampTimeWheelIndex, timeWheelIndexFromScroll, timeWheelScrollTop } from "../src/time-wheel";
 import type { Schedule, Settings } from "../src/types";
 
@@ -119,6 +119,12 @@ describe("calendar data and fasting markers", () => {
     assert.equal(calculateLastThird("18:12", "04:53"), "01:19");
     assert.equal(calculateLastThird("bad", "04:53"), null);
   });
+  it("calculates Islamic midnight halfway between Maghrib and Fajr", () => {
+    assert.equal(calculateMidnight("18:12", "04:53"), "23:32");
+    assert.equal(calculateMidnight("17:48", "04:59"), "23:23");
+    assert.equal(calculateMidnight("18:12 (IST)", "04:53 (IST)"), "23:32");
+    assert.equal(calculateMidnight("bad", "04:53"), null);
+  });
   it("marks monthly fasting, Monday/Thursday, and Friday separately", () => {
     assert.deepEqual(fastingMarkers(new Date(2026, 6, 20), 13), { monthly: true, weekly: true, jummah: false });
     assert.deepEqual(fastingMarkers(new Date(2026, 6, 23), 10), { monthly: false, weekly: true, jummah: false });
@@ -128,7 +134,7 @@ describe("calendar data and fasting markers", () => {
 
 describe("configured prayer events", () => {
   const schedule: Schedule = {
-    prayers: [{ name: "Fajr", time: "05:00" }, { name: "Sunrise", time: "06:00" }, { name: "Dhuhr", time: "12:00" }, { name: "Asr", time: "15:00" }, { name: "Maghrib", time: "18:00" }, { name: "Isha", time: "20:00" }, { name: "Tahajjud", time: "02:00" }],
+    prayers: [{ name: "Fajr", time: "05:00" }, { name: "Sunrise", time: "06:00" }, { name: "Dhuhr", time: "12:00" }, { name: "Asr", time: "15:00" }, { name: "Maghrib", time: "18:00" }, { name: "Isha", time: "20:00" }, { name: "Midnight", time: "23:30" }, { name: "Tahajjud", time: "02:00" }],
     hijriDate: "1 Ramadan 1447 AH", hijriNumeric: "01/09/1447", hijriMonth: "09", maghrib: "18:00", locationName: "Test",
   };
   const settings: Settings = {
@@ -143,18 +149,43 @@ describe("configured prayer events", () => {
       Sunset: { mode: "offset", minutes: 5 }, Tahajjud: { mode: "offset", minutes: -5, from: "Fajr" },
       Isha: { mode: "fixed", time: "20:30" },
     },
-    customTimes: [{ name: " Midnight ", time: "00:00" }, { name: "Bad", time: "24:00" }],
+    customTimes: [{ name: " Evening ", time: "00:00" }, { name: "Bad", time: "24:00" }],
     prayerTimeOffsets: { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0, },
   };
   it("builds configured Iqama and custom events without a separate Sunset Iqama", () => {
     const events = buildConfiguredEvents(schedule, settings);
     assert.ok(events.some(event => event.name === "Last Third" && event.time === "02:00"));
+    assert.ok(events.some(event => event.name === "Midnight" && event.time === "23:30"));
     assert.ok(events.some(event => event.name === "Duha prayer" && event.time === "06:20"));
     assert.equal(events.some(event => event.name === "Sunset Iqama"), false);
     assert.ok(events.some(event => event.name === "Tahajjud Qiyam" && event.time === "04:55"));
     assert.ok(events.some(event => event.name === "Isha Iqama" && event.time === "20:30"));
-    assert.ok(events.some(event => event.name === "Midnight" && event.time === "00:00"));
+    assert.ok(events.some(event => event.name === "Evening" && event.time === "00:00"));
     assert.equal(events.some(event => event.name === "Bad"), false);
+  });
+});
+describe("IP location parsing", () => {
+  it("normalizes ipwho.is and ipapi.co payloads", () => {
+    assert.deepEqual(
+      parseIpLocation({ success: true, city: "Hyderabad", region: "Telangana", country: "India", latitude: 17.3840501, longitude: 78.4563624 }),
+      { coordinates: { latitude: 17.3840501, longitude: 78.4563624 }, name: "Hyderabad, Telangana, India" },
+    );
+    assert.deepEqual(
+      parseIpLocation({ city: "Hyderabad", region: "Telangana", country_name: "India", latitude: 17.375289, longitude: 78.47439 }),
+      { coordinates: { latitude: 17.375289, longitude: 78.47439 }, name: "Hyderabad, Telangana, India" },
+    );
+  });
+  it("accepts numeric strings and falls back to a generic name", () => {
+    assert.deepEqual(
+      parseIpLocation({ latitude: "17.375289", longitude: "78.47439" }),
+      { coordinates: { latitude: 17.375289, longitude: 78.47439 }, name: "Approximate IP location" },
+    );
+  });
+  it("rejects missing, null, placeholder, and out-of-range coordinates", () => {
+    assert.throws(() => parseIpLocation({}), /invalid coordinates/);
+    assert.throws(() => parseIpLocation({ latitude: null, longitude: 78.47 }), /invalid coordinates/);
+    assert.throws(() => parseIpLocation({ latitude: 0, longitude: 0 }), /placeholder/);
+    assert.throws(() => parseIpLocation({ latitude: 91, longitude: 78.47 }), /invalid coordinates/);
   });
 });
 describe("coordinate validation", () => {

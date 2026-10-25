@@ -3,7 +3,7 @@ import type { App } from "obsidian";
 import { formatTime } from "./time";
 import { dateAtLocation, hijriAdjustmentForNow, minutesAtLocation, shiftGregorianDate } from "./hijri-date";
 import type { Settings } from "./types";
-import { calculateLastThird, fastingMarkers, mapCalendarDates } from "./calendar-data";
+import { calculateLastThird, calculateMidnight, fastingMarkers, mapCalendarDates } from "./calendar-data";
 import type { CalendarApiDate, CalendarEntry } from "./calendar-data";
 
 type CalendarMode = "hijri" | "gregorian";
@@ -388,7 +388,10 @@ export class PrayerCalendarModal extends Modal {
       if (markers.monthly) cell.addClass("salah-calendar-monthly-fast");
       if (markers.weekly) cell.addClass("salah-calendar-weekly-fast");
       if (markers.jummah) cell.addClass("salah-calendar-friday");
-      if (this.isToday(entry.gregorian)) cell.addClass("salah-calendar-today");
+      if (this.isToday(entry.gregorian)) {
+        cell.addClass("salah-calendar-today");
+        cell.setAttr("aria-current", "date");
+      }
       cell.addEventListener("click", () => {
         grid.querySelectorAll(".salah-calendar-day.is-selected").forEach(selected => selected.removeClass("is-selected"));
         cell.addClass("is-selected");
@@ -430,7 +433,15 @@ export class PrayerCalendarModal extends Modal {
     const maghrib = entry.api.timings.Maghrib;
     const fajr = entry.api.timings.Fajr;
     if (!maghrib || !fajr) return;
-    const lastThird = calculateLastThird(this.adjustedPrayerTime("Maghrib", maghrib), this.adjustedPrayerTime("Fajr", fajr));
+    const adjustedMaghrib = this.adjustedPrayerTime("Maghrib", maghrib);
+    const adjustedFajr = this.adjustedPrayerTime("Fajr", fajr);
+    const midnight = calculateMidnight(adjustedMaghrib, adjustedFajr);
+    const lastThird = calculateLastThird(adjustedMaghrib, adjustedFajr);
+    if (midnight) {
+      const row = rows.createDiv({ cls: "salah-calendar-time-row" });
+      row.createSpan({ text: "Midnight" });
+      row.createSpan({ text: displayTime(midnight, this.settings.use24HourTime) });
+    }
     if (!lastThird) return;
     const row = rows.createDiv({ cls: "salah-calendar-time-row" });
     row.createSpan({ text: "Last Third" });

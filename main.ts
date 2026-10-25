@@ -226,6 +226,9 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
       await this.refreshSchedule();
     } catch (error) {
       console.warn("Salah & Hijri Times location lookup failed.", error);
+      // Without a location there is no schedule; show the setup hint instead of
+      // leaving an empty status bar item.
+      this.renderStatus();
     } finally {
       this.loadingLocation = false;
     }
@@ -496,6 +499,7 @@ var ScheduleModal = class extends import_obsidian5.Modal {
     // actions readable in every theme.
     new import_obsidian5.ButtonComponent(actions).setButtonText("Update Iqama times").onClick(() => this.executeCommand("edit-iqama-times"));
     new import_obsidian5.ButtonComponent(actions).setButtonText("Set Hijri offset").onClick(() => this.executeCommand("set-hijri-offset"));
+    new import_obsidian5.ButtonComponent(actions).setButtonText("View calendar").onClick(() => this.executeCommand("open-prayer-calendar"));
   }
 };
 /**
@@ -602,7 +606,7 @@ function eventNotificationKey(event) {
   return event.kind + "|" + event.name;
 }
 function configuredFallbackEvents(settings) {
-  const events = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Tahajjud"].map((name) => ({ name: prayerDisplayName(name), time: "00:00", kind: "prayer" }));
+  const events = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Midnight", "Tahajjud"].map((name) => ({ name: prayerDisplayName(name), time: "00:00", kind: "prayer" }));
   for (const [name, rule] of Object.entries(settings.iqama)) {
     if (rule.mode !== "disabled") events.push({ name: iqamaEventName(name), time: rule.mode === "fixed" ? rule.time : "00:00", kind: "iqama" });
   }

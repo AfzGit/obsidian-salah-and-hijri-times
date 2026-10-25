@@ -74,14 +74,13 @@
 .salah-calendar-legend-friday{color:var(--color-orange);}
 .salah-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.25rem;}
 .salah-calendar-weekday{text-align:center;color:var(--text-muted);font-size:var(--font-ui-smaller);padding:.35rem 0;}
-.salah-calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;min-height:3.6rem;padding:.25rem;border:1px solid transparent;border-radius:var(--radius-m);background:var(--background-secondary);color:var(--text-normal);font-variant-numeric:tabular-nums;}
+.salah-calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;min-height:3.6rem;padding:.25rem;border:1px solid transparent;border-radius:var(--radius-m);background:var(--background-secondary);color:var(--text-normal);font-variant-numeric:tabular-nums;box-sizing:border-box;}
 .salah-calendar-gregorian{font-weight:var(--font-semibold);}
 .salah-calendar-hijri{font-size:var(--font-ui-smaller);color:var(--text-muted);}
 .salah-calendar-empty{min-height:3.6rem;}
 .salah-calendar-grid .salah-calendar-day.salah-calendar-monthly-fast{border-color:var(--color-purple, #a78bfa);background-color:var(--background-modifier-hover);}
 .salah-calendar-grid .salah-calendar-day.salah-calendar-weekly-fast{box-shadow:inset 0 -4px 0 var(--color-green);}
 .salah-calendar-grid .salah-calendar-day.salah-calendar-friday{box-shadow:inset 0 -4px 0 var(--color-orange);}
-.salah-calendar-today{border-color:var(--interactive-accent);}
 .salah-calendar-day.is-selected{outline:2px solid var(--interactive-accent);}
 .salah-calendar-detail{margin-top:1.25rem;padding-top:.75rem;border-top:1px solid var(--background-modifier-border);}
 .salah-calendar-detail h3{font-size:var(--font-ui-medium);}
@@ -101,6 +100,14 @@
 .salah-calendar-grid .salah-calendar-day.salah-calendar-weekly-fast{background-image:linear-gradient(color-mix(in srgb,var(--color-green) 12%,transparent),color-mix(in srgb,var(--color-green) 12%,transparent));}
 .salah-calendar-grid .salah-calendar-day.salah-calendar-friday{background-image:linear-gradient(color-mix(in srgb,var(--color-orange) 12%,transparent),color-mix(in srgb,var(--color-orange) 12%,transparent));}
 }
+
+/* Current day: a stronger accent tint than the fast markers, placed after them
+   so it wins even on a monthly-fast day. The light theme mixes with the primary
+   surface instead of the secondary one so the cell is brighter, not darker. */
+.salah-calendar-grid .salah-calendar-day.salah-calendar-today{background-color:color-mix(in srgb,var(--interactive-accent) 42%,var(--background-secondary));border-color:var(--interactive-accent);border-width:2px;}
+.theme-light .salah-calendar-grid .salah-calendar-day.salah-calendar-today{background-color:color-mix(in srgb,var(--interactive-accent) 16%,var(--background-primary));}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-today .salah-calendar-gregorian{color:var(--text-normal);font-weight:var(--font-bold);}
+.salah-calendar-grid .salah-calendar-day.salah-calendar-today .salah-calendar-hijri{color:var(--text-normal);opacity:.9;}
 
 .salah-iqama-setting .setting-item-control{display:grid;grid-template-columns:9rem minmax(7rem,1fr) auto auto;gap:.5rem;width:min(30rem,58%);flex:0 0 min(30rem,58%);align-items:center;}
 .salah-iqama-setting .setting-item-control>.dropdown{grid-column:1;width:100%;margin:0;}

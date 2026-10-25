@@ -16,8 +16,8 @@ Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-ti
 
 - Show the next prayer, Iqama, or custom event and its live countdown in the status bar.
 - Right-click the status bar countdown for quick actions: update Iqama times, set the Hijri offset, view the calendar, or display today's prayer times.
-- Open a prayer schedule with prayer and Iqama times, Hijri date, and location. The schedule aligns its time columns in a table and includes buttons for **Update Iqama times** and **Set Hijri offset**.
-- Browse a calendar by Hijri month or Gregorian month, with highlighted days for Fasting and Jummah. Select a day to see its prayer times.
+- Open a prayer schedule with prayer and Iqama times, the calculated Islamic midnight and Last Third, Hijri date, and location. The schedule aligns its time columns in a table and includes buttons for **Update Iqama times**, **Set Hijri offset**, and **View calendar**.
+- Browse a calendar by Hijri month or Gregorian month, with highlighted days for Fasting and Jummah and a brighter current day. Select a day to see its prayer times, midnight, and Last Third.
 - Configure prayer calculations, Hijri offset and rollover, Iqama rules, custom daily times, countdown colors, and notifications.
 - Search for a location or use approximate IP location detection.
 
@@ -31,11 +31,13 @@ Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-ti
 - **Open prayer calendar**: browse Hijri- or Gregorian-month calendar views and view a selected day's prayer times.
 - **Toggle status bar visibility**: show or hide the status bar item.
 
-Right-clicking the status bar countdown opens a menu with **Update Iqama times**, **Set Hijri offset**, **View calendar**, and **Display prayer times**. The menu executes the commands above rather than duplicating their logic. The prayer-times modal shows the same **Update Iqama times** and **Set Hijri offset** actions as buttons.
+Right-clicking the status bar countdown opens a menu with **Update Iqama times**, **Set Hijri offset**, **View calendar**, and **Display prayer times**. The menu executes the commands above rather than duplicating their logic. The prayer-times modal shows the same **Update Iqama times**, **Set Hijri offset**, and **View calendar** actions as buttons.
 
 # Location
 
-On first launch, the plugin tries to fetch user location, and if this fails, the user can go to the setting and set location manually.
+On first launch, the plugin detects an approximate location from the public IP address. It tries `ipwho.is` first and falls back to `ipapi.co`, with a 10-second budget per provider so a stalled request cannot block startup. Responses are validated: missing, null, out-of-range, and placeholder `0,0` coordinates are rejected. IP detection is coarse and can reflect a VPN or ISP egress point, so review the result in settings and set a location manually when accuracy matters.
+
+If detection fails, the status bar shows a setup hint and the settings tab lets you search for a place, detect again, or enter coordinates directly.
 
 Location search uses Open-Meteo's [Geocoding API](https://open-meteo.com/en/docs/geocoding-api). Coordinates are decimal degrees. New York City: latitude `40.7128`, longitude `-74.0060`. Find coordinates on [Google Maps](https://www.google.com/maps) or [OpenStreetMap](https://www.openstreetmap.org).
 
@@ -61,7 +63,7 @@ Custom daily times and fixed Iqama entries accept 24-hour `HH:mm` values or the 
 
 # Prayer and Hijri calculations
 
-Prayer times and calendar dates are provided by the [AlAdhan API](https://aladhan.com/prayer-times-api), using the selected calculation method and saved coordinates. Hijri rollover compares Maghrib with the saved location's local clock and requests the corresponding location-local Gregorian date, so it remains correct when the device timezone differs from the prayer location. For offsets and post-Maghrib rollover, the plugin requests the service conversion for the shifted Gregorian day, preserving its actual Hijri month lengths. The calendar displays the service's Hijri dates with the configured day offset. Hijri rollover in the daily schedule can occur after Maghrib or at midnight.
+Prayer times and calendar dates are provided by the [AlAdhan API](https://aladhan.com/prayer-times-api), using the selected calculation method and saved coordinates. Islamic midnight is calculated as the midpoint between Maghrib and the next Fajr; Last Third is two-thirds of the way through the same night. Both are derived locally and have no Iqama. Hijri rollover compares Maghrib with the saved location's local clock and requests the corresponding location-local Gregorian date, so it remains correct when the device timezone differs from the prayer location. For offsets and post-Maghrib rollover, the plugin requests the service conversion for the shifted Gregorian day, preserving its actual Hijri month lengths. The calendar displays the service's Hijri dates with the configured day offset. Hijri rollover in the daily schedule can occur after Maghrib or at midnight.
 
 Sunset is represented by Maghrib in the prayer schedule; there is no separate Sunset Iqama because Maghrib is the sunset prayer.
 
@@ -69,7 +71,7 @@ Sunset is represented by Maghrib in the prayer schedule; there is no separate Su
 
 Run **npm test** to execute the unit test suite. Run **npm run build** to type-check the full TypeScript project and create the main.js bundle.
 
-The tests cover clock math, rollover and location timezones, Gregorian date shifting, calendar month lengths and boundaries, fasting markers, Iqama rules, custom times, time-picker row geometry, and coordinates.
+The tests cover clock math, rollover and location timezones, Gregorian date shifting, calendar month lengths and boundaries, fasting markers, Iqama rules, custom times, midnight and Last Third calculations, IP-location payload parsing, time-picker row geometry, and coordinates.
 
 # Data and privacy
 
@@ -93,8 +95,8 @@ This plugin is distributed under the MIT License. See [LICENSE](LICENSE).
 - `src/hijri-date.ts`: Hijri rollover policy and location-local clock/date helpers.
 - `src/schedule-events.ts`: Iqama and custom event construction.
 - `src/location.ts` and `src/location-picker.ts`: IP location fallback and place search.
-- `src/coordinates.ts`: shared WGS84 coordinate validation.
-- `src/prayer-times.ts`: prayer API loading, date adjustment, and Last Third calculation.
+- `src/coordinates.ts`: shared WGS84 coordinate validation and IP-location payload parsing.
+- `src/prayer-times.ts`: prayer API loading, date adjustment, and midnight/Last Third calculation.
 - `src/status-template.ts`: status bar token rendering.
 - `src/calculation-methods.ts`: labeled AlAdhan method IDs.
 - `src/time.ts`: clock math and countdown.

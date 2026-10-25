@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.4
+
+- Added **View calendar** to the prayer-times modal, alongside the existing **Update Iqama times** and **Set Hijri offset** buttons.
+- Added calculated **Midnight** (the midpoint between Maghrib and the next Fajr) to the daily schedule, status-bar tooltip, countdown events, and calendar day details. Midnight has no Iqama.
+- Brightened the current day in the calendar with an accent-tinted background, accent border, and stronger text; it is also exposed as `aria-current="date"`.
+- Hardened IP location detection: per-provider 10-second timeouts, explicit HTTP status checks, numeric-string coercion, rejection of missing/null/out-of-range and placeholder `0,0` coordinates, and a status-bar setup hint when detection fails.
+- Added unit tests for midnight calculation and IP-location payload parsing.
+- Updated the README and architecture notes for the location flow, midnight, calendar highlighting, and modal actions.
+
 ## 1.0.3
 
 - Added **Set Hijri offset** to the status-bar right-click menu, so all four quick actions now share the command registry.

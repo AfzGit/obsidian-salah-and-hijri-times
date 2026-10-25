@@ -1,6 +1,7 @@
 import { requestUrl } from "obsidian";
 import type { Settings, Schedule } from "./types";
 import { formatTime, parseTime } from "./time";
+import { calculateLastThird, calculateMidnight } from "./calendar-data";
 import { dateAtLocation, hijriAdjustmentForNow, minutesAtLocation, shiftGregorianDate } from "./hijri-date";
 
 const HIJRI_MONTHS = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah"];
@@ -78,8 +79,12 @@ export async function loadSchedule(settings: Settings, now = new Date()): Promis
   const maghrib = parseTime(adjustedTime("Maghrib"));
   const fajr = parseTime(adjustedTime("Fajr"));
   if (maghrib !== null && fajr !== null) {
-    // Last Third begins two-thirds through the night from Maghrib until the next Fajr.
-    prayers.Tahajjud = formatTime(Math.floor(maghrib + (fajr + 1440 - maghrib) * 2 / 3));
+    // Islamic midnight is halfway through the night; Last Third begins two-thirds
+    // of the way. Both are calculated, never fetched, and have no Iqama.
+    const midnight = calculateMidnight(adjustedTime("Maghrib"), adjustedTime("Fajr"));
+    const lastThird = calculateLastThird(adjustedTime("Maghrib"), adjustedTime("Fajr"));
+    if (midnight) prayers.Midnight = midnight;
+    if (lastThird) prayers.Tahajjud = lastThird;
   }
 
   const day = Number(hijri.day);
