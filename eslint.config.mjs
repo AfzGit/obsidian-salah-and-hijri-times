@@ -21,6 +21,18 @@ export default defineConfig([
         },
       },
     },
+    rules: {
+      // Passing `brands` replaces the plugin's default list, so the terms this
+      // plugin actually uses are listed here. Hijri, Iqama, and Salah are
+      // proper nouns and must keep their capitalization in UI text.
+      "obsidianmd/ui/sentence-case": [
+        "warn",
+        {
+          brands: ["Obsidian", "Hijri", "Iqama", "Salah"],
+          enforceCamelCaseLower: true,
+        },
+      ],
+    },
   },
   {
     files: ["tests/**/*.ts"],

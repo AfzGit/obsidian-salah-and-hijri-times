@@ -251,9 +251,9 @@ export default class SalahPlugin extends Plugin {
     this.addSettingTab(new SalahSettingsTab(this.app, this));
 
     this.addCommand({ id: "set-manual-location", name: "Set manual location", callback: () => this.openLocationPicker() });
-    this.addCommand({ id: "refresh-all-times", name: "Refresh all prayer times and dates now", callback: () => void this.refreshNow() });
-    this.addCommand({ id: "set-hijri-offset", name: "Set date offset", callback: () => this.openHijriOffsetEditor() });
-    this.addCommand({ id: "edit-iqama-times", name: "Update iqama times", callback: () => this.openIqamaEditor() });
+    this.addCommand({ id: "refresh-all-times", name: "Refresh all prayer and Hijri times now", callback: () => void this.refreshNow() });
+    this.addCommand({ id: "set-hijri-offset", name: "Set Hijri offset", callback: () => this.openHijriOffsetEditor() });
+    this.addCommand({ id: "edit-iqama-times", name: "Update Iqama times", callback: () => this.openIqamaEditor() });
     this.addCommand({ id: "display-prayer-times", name: "Display prayer times", callback: () => this.openSchedule() });
     this.addCommand({
       id: "open-prayer-calendar",
@@ -335,7 +335,7 @@ export default class SalahPlugin extends Plugin {
       new Notice("Choose or enter a location before refreshing prayer times.", 10_000);
       return;
     }
-    if (await this.refreshSchedule()) new Notice("Prayer times and dates refreshed.", 10_000);
+    if (await this.refreshSchedule()) new Notice("Prayer and Hijri times refreshed.", 10_000);
   }
 
   async setLocation(coordinates: { latitude: number; longitude: number }, name: string): Promise<void> {
@@ -527,8 +527,8 @@ export default class SalahPlugin extends Plugin {
    */
   openStatusBarMenu(event: MouseEvent): void {
     const menu = new Menu();
-    menu.addItem((item) => item.setTitle("Update iqama times").setIcon("clock").onClick(() => this.executeCommand("edit-iqama-times")));
-    menu.addItem((item) => item.setTitle("Set date offset").setIcon("calendar-plus").onClick(() => this.executeCommand("set-hijri-offset")));
+    menu.addItem((item) => item.setTitle("Update Iqama times").setIcon("clock").onClick(() => this.executeCommand("edit-iqama-times")));
+    menu.addItem((item) => item.setTitle("Set Hijri offset").setIcon("calendar-plus").onClick(() => this.executeCommand("set-hijri-offset")));
     menu.addItem((item) => item.setTitle("View calendar").setIcon("calendar-days").onClick(() => this.executeCommand("open-prayer-calendar")));
     menu.addItem((item) => item.setTitle("Display prayer times").setIcon("list").onClick(() => this.executeCommand("display-prayer-times")));
     menu.showAtMouseEvent(event);
@@ -603,8 +603,8 @@ class ScheduleModal extends Modal {
     // No `setIcon()` here: ButtonComponent.setIcon() empties the button, which
     // would wipe the label set by `setButtonText()`. Text-only keeps both
     // actions readable in every theme.
-    new ButtonComponent(actions).setButtonText("Update iqama times").onClick(() => this.executeCommand("edit-iqama-times"));
-    new ButtonComponent(actions).setButtonText("Set date offset").onClick(() => this.executeCommand("set-hijri-offset"));
+    new ButtonComponent(actions).setButtonText("Update Iqama times").onClick(() => this.executeCommand("edit-iqama-times"));
+    new ButtonComponent(actions).setButtonText("Set Hijri offset").onClick(() => this.executeCommand("set-hijri-offset"));
     new ButtonComponent(actions).setButtonText("View calendar").onClick(() => this.executeCommand("open-prayer-calendar"));
   }
 }
@@ -624,8 +624,8 @@ class HijriOffsetModal extends Modal {
   }
 
   onOpen(): void {
-    this.contentEl.createEl("h2", { text: "Set date offset" });
-    this.contentEl.createEl("p", { text: "Enter a number of days to add to or subtract from the calculated date." });
+    this.contentEl.createEl("h2", { text: "Set Hijri offset" });
+    this.contentEl.createEl("p", { text: "Enter a number of days to add to or subtract from the calculated Hijri date." });
     const state: { input: HTMLInputElement | null } = { input: null };
     new Setting(this.contentEl).setName("Offset (days)").addText((text) => {
       text.setValue(String(this.currentOffset));
@@ -671,7 +671,7 @@ class IqamaEditorModal extends Modal {
 
   renderRows(updated: Record<string, IqamaRule>): void {
     this.contentEl.empty();
-    this.contentEl.createEl("h2", { text: "Update iqama times" });
+    this.contentEl.createEl("h2", { text: "Update Iqama times" });
     this.contentEl.createEl("p", { text: "Set each time as disabled, a fixed time, or minutes offset from its prayer." });
     for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Tahajjud"]) {
       const rule = updated[prayer] ?? { mode: "disabled" };
@@ -714,7 +714,7 @@ class IqamaEditorModal extends Modal {
       }
     }
     new Setting(this.contentEl)
-      .addButton((button) => button.setButtonText("Save all iqama times").setCta().onClick(() => {
+      .addButton((button) => button.setButtonText("Save all Iqama times").setCta().onClick(() => {
         this.onSave(updated);
         this.close();
       }))
@@ -1066,7 +1066,7 @@ class SalahSettingsTab extends PluginSettingTab {
         locationName = value;
       }));
 
-    new Setting(container).setName("Prayer times and dates").setHeading();
+    new Setting(container).setName("Prayer times and Hijri date").setHeading();
     new Setting(container)
       .setName("Calculation method")
       .setDesc("Choose your local prayer-time convention.")
@@ -1099,8 +1099,8 @@ class SalahSettingsTab extends PluginSettingTab {
         });
         hijriState.input = text.inputEl;
       })
-      .addButton((button) => button.setButtonText("-").setTooltip("Decrease date offset by one day").onClick(() => changeHijriOffset(-1)))
-      .addButton((button) => button.setButtonText("+").setTooltip("Increase date offset by one day").onClick(() => changeHijriOffset(1)));
+      .addButton((button) => button.setButtonText("-").setTooltip("Decrease Hijri offset by one day").onClick(() => changeHijriOffset(-1)))
+      .addButton((button) => button.setButtonText("+").setTooltip("Increase Hijri offset by one day").onClick(() => changeHijriOffset(1)));
 
     new Setting(container)
       .setName("Prayer time offsets (minutes)")
@@ -1226,7 +1226,7 @@ class SalahSettingsTab extends PluginSettingTab {
         this.updateMinutes(value, "prayerReminderMinutes")));
     new Setting(container)
       .setName("Iqama advance notification (minutes)")
-      .setDesc("Minutes before iqama; 0 disables.")
+      .setDesc("Minutes before Iqama; 0 disables.")
       .addText((text) => text.setPlaceholder("0").setValue(String(this.plugin.settings.iqamaReminderMinutes)).onChange((value) =>
         this.updateMinutes(value, "iqamaReminderMinutes")));
 

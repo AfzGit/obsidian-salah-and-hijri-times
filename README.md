@@ -15,8 +15,8 @@ Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-ti
 ## Features
 
 - Show the next prayer, Iqama, or custom event and its live countdown in the status bar.
-- Right-click the status bar countdown for quick actions: update iqama times, set the date offset, view the calendar, or display today's prayer times.
-- Open a prayer schedule with prayer and Iqama times, the calculated Islamic midnight and Last Third, Hijri date, and location. The schedule aligns its time columns in a table and includes buttons for **Update iqama times**, **Set date offset**, and **View calendar**.
+- Right-click the status bar countdown for quick actions: update Iqama times, set the Hijri offset, view the calendar, or display today's prayer times.
+- Open a prayer schedule with prayer and Iqama times, the calculated Islamic midnight and Last Third, Hijri date, and location. The schedule aligns its time columns in a table and includes buttons for **Update Iqama times**, **Set Hijri offset**, and **View calendar**.
 - Browse a calendar by Hijri month or Gregorian month, with highlighted days for Fasting and Jummah and a brighter current day. Select a day to see its prayer times, midnight, and Last Third.
 - Configure prayer calculations, Hijri offset and rollover, Iqama rules, custom daily times, countdown colors, and notifications.
 - Search for a location or use approximate IP location detection.
@@ -24,14 +24,14 @@ Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-ti
 ## Commands
 
 - **Set manual location**: search for and select a location.
-- **Refresh all prayer times and dates now**: fetch a new schedule immediately.
-- **Set date offset**: add or subtract days from the calculated Hijri date.
-- **Update iqama times**: edit all Iqama rules in one modal.
+- **Refresh all prayer and Hijri times now**: fetch a new schedule immediately.
+- **Set Hijri offset**: add or subtract days from the calculated Hijri date.
+- **Update Iqama times**: edit all Iqama rules in one modal.
 - **Display prayer times**: open today's schedule.
 - **Open prayer calendar**: browse Hijri- or Gregorian-month calendar views and view a selected day's prayer times.
 - **Toggle status bar visibility**: show or hide the status bar item.
 
-Right-clicking the status bar countdown opens a menu with **Update iqama times**, **Set date offset**, **View calendar**, and **Display prayer times**. The menu executes the commands above rather than duplicating their logic. The prayer-times modal shows the same **Update iqama times**, **Set date offset**, and **View calendar** actions as buttons.
+Right-clicking the status bar countdown opens a menu with **Update Iqama times**, **Set Hijri offset**, **View calendar**, and **Display prayer times**. The menu executes the commands above rather than duplicating their logic. The prayer-times modal shows the same **Update Iqama times**, **Set Hijri offset**, and **View calendar** actions as buttons.
 
 ## Location
 
