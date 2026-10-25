@@ -25,7 +25,7 @@ The AlAdhan API supplies the prayer times and Hijri date. The plugin sends the c
 
 Sunset is not a separate prayer event in the schedule. Maghrib is the sunset prayer and is the only evening prayer/Iqama entry.
 
-Islamic midnight is calculated halfway from Maghrib to the next Fajr, and Last Third is calculated two-thirds of the way through the same night. Both are derived locally, appear in the daily schedule and calendar details, and have no Iqama rule. Iqama rules can be disabled, fixed, or offset; Tahajjud Qiyam can use either Last Third or Fajr as its base.
+Islamic midnight is calculated halfway from Maghrib to the next Fajr, and Last Third is calculated two-thirds of the way through the same night. Both are derived locally, appear in the daily schedule and calendar details, and have no Iqama rule. Iqama rules can be disabled, fixed, or offset; Tahajjud Qiyam can use either Last Third or Fajr as its base. The Iqama editor renders a single fixed-layout table, so every rule row shares the same label, dropdown, and value columns; per-row `Setting` controls used to start at different x positions because each dropdown sized itself to its selected option. The dropdown keeps a fixed width and the value cell reserves a fixed button slot, so the time field ends at the same x on every row.
 
 ## Calendar data flow
 

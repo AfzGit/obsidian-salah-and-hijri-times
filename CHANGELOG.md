@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7
+
+- Reworked the **Update Iqama times** editor into a fixed-layout table, so the prayer label, rule dropdown, time field, and buttons line up in the same columns on every row. Previously each dropdown sized itself to its selected option, which shifted the time field left or right.
+- Renamed the Tahajjud offset option **Offset from dawn** to **Offset from Fajr**.
+- Added the prayer names to the sentence-case lint brands so Fajr, Dhuhr, Asr, Maghrib, Isha, Sunrise, and Tahajjud keep their capitalization in UI text.
+
 ## 1.0.6
 
 - Removed three CSS features that the community CSS lint reports as only partially supported: `scrollbar-width`, `mask-image`, and `display: contents`. The time picker fades its edge rows with gradient overlays, and the calendar day details use flex rows that keep every time right-aligned. Appearance and behaviour are unchanged.

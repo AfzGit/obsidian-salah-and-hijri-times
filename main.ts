@@ -23,6 +23,7 @@ import {
   Plugin,
   PluginSettingTab,
   Setting,
+  TextComponent,
 } from "obsidian";
 import type { SettingDefinitionItem } from "obsidian";
 import type { EventNotificationRule, IqamaRule, Schedule, Settings, TimelineEvent } from "./src/types";
@@ -126,7 +127,7 @@ function iqamaEventName(prayer: string): string {
 function addIqamaRuleOptions(dropdown: DropdownComponent, prayer: string): DropdownComponent {
   dropdown.addOption("disabled", "Disabled").addOption("fixed", "Fixed time");
   if (prayer === "Tahajjud") {
-    dropdown.addOption("offset-last-third", "Offset from last third").addOption("offset-fajr", "Offset from dawn");
+    dropdown.addOption("offset-last-third", "Offset from last third").addOption("offset-fajr", "Offset from Fajr");
   } else {
     dropdown.addOption("offset", "Offset from " + prayerDisplayName(prayer));
   }
@@ -666,6 +667,7 @@ class IqamaEditorModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("salah-iqama-modal");
     this.renderRows({ ...this.rules });
   }
 
@@ -673,44 +675,55 @@ class IqamaEditorModal extends Modal {
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: "Update Iqama times" });
     this.contentEl.createEl("p", { text: "Set each time as disabled, a fixed time, or minutes offset from its prayer." });
+    // A real table (rather than one `Setting` per row) keeps every control in
+    // the same column. A dropdown's width depends on the selected option, so
+    // per-row setting controls started at different x positions and the value
+    // fields never lined up.
+    const table = this.contentEl.createEl("table", { cls: "salah-iqama-table" });
+    const body = table.createEl("tbody");
     for (const prayer of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha", "Tahajjud"]) {
       const rule = updated[prayer] ?? { mode: "disabled" };
-      const label = prayer === "Sunrise" ? "Duha prayer" : prayer === "Tahajjud" ? "Tahajjud Qiyam" : prayer + " Iqama";
-      const row = new Setting(this.contentEl).setName(label);
-      row.addDropdown((dropdown) => addIqamaRuleOptions(dropdown, prayer).setValue(iqamaRuleSelection(prayer, rule)).onChange((value) => {
-        updated[prayer] = iqamaRuleForSelection(prayer, value, rule);
-        this.renderRows(updated);
-      }));
+      const row = body.createEl("tr");
+      const label = row.createEl("th", { cls: "salah-iqama-name", text: iqamaEventName(prayer) });
+      label.setAttr("scope", "row");
+
+      const ruleCell = row.createEl("td", { cls: "salah-iqama-rule" });
+      addIqamaRuleOptions(new DropdownComponent(ruleCell), prayer)
+        .setValue(iqamaRuleSelection(prayer, rule))
+        .onChange((value) => {
+          updated[prayer] = iqamaRuleForSelection(prayer, value, rule);
+          this.renderRows(updated);
+        });
+
+      const valueCell = row.createEl("td", { cls: "salah-iqama-value" });
+      const controls = valueCell.createDiv({ cls: "salah-iqama-controls" });
+      const inputSlot = controls.createDiv({ cls: "salah-iqama-input" });
+      const buttons = controls.createDiv({ cls: "salah-iqama-buttons" });
       if (rule.mode === "fixed") {
-        const state: { input: HTMLInputElement | null } = { input: null };
-        row.addText((text) => {
-          text.setPlaceholder("Hh:mm").setValue(rule.time).onChange((value) => {
-            if (parseTime(value) !== null) updated[prayer] = { mode: "fixed", time: value };
-          });
-          state.input = text.inputEl;
-        }).addButton((button) => button.setIcon("clock").setTooltip("Choose time").onClick(() => {
-          new TimePickerModal(this.app, state.input?.value || rule.time, (value) => {
+        const input = new TextComponent(inputSlot).setPlaceholder("Hh:mm").setValue(rule.time).onChange((value) => {
+          if (parseTime(value) !== null) updated[prayer] = { mode: "fixed", time: value };
+        }).inputEl;
+        new ButtonComponent(buttons).setIcon("clock").setTooltip("Choose time").onClick(() => {
+          new TimePickerModal(this.app, input.value || rule.time, (value) => {
             updated[prayer] = { mode: "fixed", time: value };
-            if (state.input) state.input.value = value;
+            input.value = value;
           }).open();
-        }));
+        });
       } else if (rule.mode === "offset") {
-        const state: { input: HTMLInputElement | null } = { input: null };
-        row.addText((text) => {
-          text.setPlaceholder("Minutes").setValue(String(rule.minutes)).onChange((value) => {
-            const minutes = Number(value);
-            if (value.trim() && Number.isInteger(minutes)) updated[prayer] = offsetRule(minutes, rule.from);
-          });
-          state.input = text.inputEl;
-        }).addButton((button) => button.setButtonText("−").setTooltip("Decrease offset by one minute").onClick(() => {
-          const minutes = Math.trunc(Number(state.input?.value) || 0) - 1;
+        const input = new TextComponent(inputSlot).setPlaceholder("Minutes").setValue(String(rule.minutes)).onChange((value) => {
+          const minutes = Number(value);
+          if (value.trim() && Number.isInteger(minutes)) updated[prayer] = offsetRule(minutes, rule.from);
+        }).inputEl;
+        new ButtonComponent(buttons).setButtonText("−").setTooltip("Decrease offset by one minute").onClick(() => {
+          const minutes = Math.trunc(Number(input.value) || 0) - 1;
           updated[prayer] = offsetRule(minutes, rule.from);
-          if (state.input) state.input.value = String(minutes);
-        })).addButton((button) => button.setButtonText("+").setTooltip("Increase offset by one minute").onClick(() => {
-          const minutes = Math.trunc(Number(state.input?.value) || 0) + 1;
+          input.value = String(minutes);
+        });
+        new ButtonComponent(buttons).setButtonText("+").setTooltip("Increase offset by one minute").onClick(() => {
+          const minutes = Math.trunc(Number(input.value) || 0) + 1;
           updated[prayer] = offsetRule(minutes, rule.from);
-          if (state.input) state.input.value = String(minutes);
-        }));
+          input.value = String(minutes);
+        });
       }
     }
     new Setting(this.contentEl)

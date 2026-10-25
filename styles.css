@@ -121,7 +121,21 @@
 .salah-calendar-grid .salah-calendar-day.salah-calendar-today .salah-calendar-gregorian{color:var(--text-normal);font-weight:var(--font-bold);}
 .salah-calendar-grid .salah-calendar-day.salah-calendar-today .salah-calendar-hijri{color:var(--text-normal);opacity:.9;}
 
-.salah-iqama-setting .setting-item-control{display:grid;grid-template-columns:9rem minmax(7rem,1fr) auto auto;gap:.5rem;width:min(30rem,58%);flex:0 0 min(30rem,58%);align-items:center;}
-.salah-iqama-setting .setting-item-control>.dropdown{grid-column:1;width:100%;margin:0;}
-.salah-iqama-setting .setting-item-control>input[type="text"]{grid-column:2;width:100%;}
-@media(max-width:600px){.salah-iqama-setting .setting-item-control{width:100%;flex-basis:100%;grid-template-columns:8rem minmax(4rem,1fr) auto auto;}}
+/* Iqama editor. A fixed-layout table keeps the label, rule dropdown, and value
+   controls in the same columns on every row; a per-row `Setting` let each
+   dropdown's own width shift the input left or right. The controls cell is a
+   flex line, so the input takes the free space and the buttons stay grouped at
+   the right edge. */
+.salah-iqama-modal{width:min(40rem,calc(100vw - 2rem));}
+.salah-iqama-table{width:100%;table-layout:fixed;border-collapse:collapse;}
+.salah-iqama-table th{width:9rem;padding:.4rem 1rem .4rem 0;text-align:left;font-weight:var(--font-normal);white-space:nowrap;border-bottom:1px solid var(--background-modifier-border);vertical-align:middle;}
+.salah-iqama-table td{padding:.35rem 0;border-bottom:1px solid var(--background-modifier-border);vertical-align:middle;}
+.salah-iqama-table tr:last-child th,.salah-iqama-table tr:last-child td{border-bottom:0;}
+.salah-iqama-table td.salah-iqama-rule{width:12.5rem;padding-right:.5rem;}
+.salah-iqama-rule .dropdown{width:100%;margin:0;}
+.salah-iqama-controls{display:flex;align-items:center;gap:.4rem;min-height:2.2rem;}
+.salah-iqama-input{flex:1 1 0;min-width:0;}
+.salah-iqama-input input[type="text"]{width:100%;}
+.salah-iqama-buttons{flex:0 0 4.2rem;display:flex;justify-content:flex-end;gap:.4rem;}
+.salah-iqama-buttons button{flex:0 0 auto;}
+@media(max-width:600px){.salah-iqama-table th{width:6.5rem;white-space:normal;}.salah-iqama-table td.salah-iqama-rule{width:10rem;}}
