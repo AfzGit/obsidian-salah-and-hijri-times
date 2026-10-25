@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.6
+
+- Removed three CSS features that the community CSS lint reports as only partially supported: `scrollbar-width`, `mask-image`, and `display: contents`. The time picker fades its edge rows with gradient overlays, and the calendar day details use flex rows that keep every time right-aligned. Appearance and behaviour are unchanged.
+
 ## 1.0.5
 
 - Restored the **Hijri** and **Iqama** capitalization in every user-facing label: the status-bar menu, prayer-times modal buttons, Iqama editor, settings, notices, and commands.

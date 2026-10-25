@@ -39,9 +39,16 @@
 .salah-time-modal{width:min(22rem,calc(100vw - 2rem));}
 .salah-time-modal-content{text-align:center;}
 .salah-wheel-picker{--salah-time-row-height:38px;--salah-time-visible-rows:5;--salah-time-spacer-rows:2;display:flex;align-items:center;justify-content:center;gap:.6rem;margin:1.5rem auto 1rem;}
-.salah-time-wheels{display:flex;align-items:center;gap:.25rem;}
-.salah-time-wheel{height:calc(var(--salah-time-row-height) * var(--salah-time-visible-rows));width:4.25rem;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scroll-behavior:auto;scrollbar-width:none;box-sizing:border-box;mask-image:linear-gradient(to bottom,transparent 0,#000 18%,#000 82%,transparent 100%);}
+.salah-time-wheels{position:relative;display:flex;align-items:center;gap:.25rem;}
+.salah-time-wheel{height:calc(var(--salah-time-row-height) * var(--salah-time-visible-rows));width:4.25rem;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scroll-behavior:auto;box-sizing:border-box;}
 .salah-time-wheel::-webkit-scrollbar{display:none;width:0;height:0;}
+/* Fade the top and bottom rows with overlays instead of `mask-image` or
+   `scrollbar-width`, which the community CSS lint reports as only partially
+   supported. The overlays match the old 18% mask and ignore pointer events so
+   the edge rows stay clickable. */
+.salah-time-wheels::before,.salah-time-wheels::after{content:"";position:absolute;left:0;right:0;height:calc(var(--salah-time-row-height) * .9);z-index:1;pointer-events:none;}
+.salah-time-wheels::before{top:0;background:linear-gradient(to bottom,var(--modal-background,var(--background-primary)),transparent);}
+.salah-time-wheels::after{bottom:0;background:linear-gradient(to top,var(--modal-background,var(--background-primary)),transparent);}
 /* Hidden until TimePickerModal has applied the exact initial scroll offsets. */
 .salah-wheel-picker:not(.is-ready) .salah-time-wheel,.salah-wheel-picker:not(.is-ready) .salah-time-period{visibility:hidden;}
 .salah-time-wheel-spacer{height:calc(var(--salah-time-row-height) * var(--salah-time-spacer-rows));}
@@ -84,8 +91,11 @@
 .salah-calendar-day.is-selected{outline:2px solid var(--interactive-accent);}
 .salah-calendar-detail{margin-top:1.25rem;padding-top:.75rem;border-top:1px solid var(--background-modifier-border);}
 .salah-calendar-detail h3{font-size:var(--font-ui-medium);}
-.salah-calendar-times{display:grid;grid-template-columns:minmax(10rem,1fr) auto;gap:.25rem 1rem;max-width:24rem;font-variant-numeric:tabular-nums;}
-.salah-calendar-time-row{display:contents;}
+.salah-calendar-times{max-width:24rem;font-variant-numeric:tabular-nums;}
+/* Each row is its own flex line instead of `display:contents`, which the
+   community CSS lint reports as only partially supported. The time is pushed
+   to the right edge of the fixed-width container, so every row still lines up. */
+.salah-calendar-time-row{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;padding-block:.125rem;}
 .salah-calendar-time-row span{padding:.2rem 0;}
 .salah-calendar-time-row span:last-child{text-align:right;font-family:var(--font-monospace);}
 
