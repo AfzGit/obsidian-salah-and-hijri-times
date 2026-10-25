@@ -1,6 +1,6 @@
 import { Notice, requestUrl } from "obsidian";
 import type { Coordinates } from "./types";
-import { parseIpLocation, validCoordinates } from "./coordinates";
+import { parseIpLocation, type IpLocationPayload } from "./coordinates";
 export { validCoordinates as valid } from "./coordinates";
 
 type Provider = {
@@ -13,13 +13,16 @@ const PROVIDER_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(promise: Promise<T>, provider: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
+    const timer = window.setTimeout(
       () => reject(new Error(`${provider} timed out after ${PROVIDER_TIMEOUT_MS / 1000} seconds.`)),
       PROVIDER_TIMEOUT_MS,
     );
     promise.then(
-      value => { clearTimeout(timer); resolve(value); },
-      error => { clearTimeout(timer); reject(error); },
+      value => { window.clearTimeout(timer); resolve(value); },
+      (error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
     );
   });
 }
@@ -36,7 +39,7 @@ export async function detectLocation(announceSuccess = true): Promise<{ coordina
       load: async () => {
         const response = await requestUrl({ url: "https://ipwho.is/", method: "GET" });
         if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}.`);
-        const data = response.json;
+        const data = response.json as IpLocationPayload;
         if (data?.success === false) throw new Error("ipwho.is could not locate this network.");
         return parseIpLocation(data);
       },
@@ -46,7 +49,7 @@ export async function detectLocation(announceSuccess = true): Promise<{ coordina
       load: async () => {
         const response = await requestUrl({ url: "https://ipapi.co/json/", method: "GET" });
         if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}.`);
-        const data = response.json;
+        const data = response.json as IpLocationPayload & { reason?: string };
         if (data?.error) throw new Error(typeof data.reason === "string" ? data.reason : "ipapi.co could not locate this network.");
         return parseIpLocation(data);
       },

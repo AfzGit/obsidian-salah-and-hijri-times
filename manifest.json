@@ -5,5 +5,6 @@
   "minAppVersion": "1.5.0",
   "description": "Track daily prayer times, Iqama, and the Hijri date.",
   "author": "AfzGit",
+  "authorUrl": "https://github.com/AfzGit",
   "isDesktopOnly": false
 }

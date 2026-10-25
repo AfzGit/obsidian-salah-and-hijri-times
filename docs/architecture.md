@@ -4,7 +4,9 @@
 
 The Obsidian entry point is `main.ts`. It owns plugin lifecycle, commands, settings, the status bar, minute-aligned countdown updates, and notification scheduling. Startup network work is deferred until `workspace.onLayoutReady()`.
 
-`main.ts` was recovered from the last complete bundle. It keeps bundle-style class declarations, the generated `import_obsidian5` namespace alias, and `@ts-nocheck`. Portable logic belongs in `src/*`; treat `main.ts` as Obsidian/UI wiring and avoid moving typed calculations back into it. Saved settings are merged into `DEFAULTS` shallowly, so nested objects (Iqama rules, prayer offsets, notification rules) need explicit merging in `onload()`.
+`main.ts` is a typed entry point. It owns plugin lifecycle, commands, settings, the status bar, minute-aligned countdown updates, and notification scheduling. Startup network work is deferred until `workspace.onLayoutReady()`. Portable logic belongs in `src/*`; keep `main.ts` focused on Obsidian/UI wiring. Saved settings are merged into `DEFAULTS` shallowly, so nested objects (Iqama rules, prayer offsets, notification rules) and arrays (custom times, notification history) are cloned or merged explicitly in `onload()`.
+
+The settings tab overrides `getSettingDefinitions()` with an empty list and renders imperatively through `display()`. This keeps the dynamic Iqama rows and modal editors working while satisfying the official lint rule for Obsidian 1.13+; `display()` remains the fallback for older app versions.
 
 Pure calculations are kept independent from Obsidian APIs so they can run under Node's test runner:
 
@@ -45,9 +47,9 @@ The status bar is rendered from the user template. Only the countdown span recei
 
 Notification keys include the date, event kind, name, time, and reached/advance state. Saved keys prevent duplicate notices during refreshes. The key history is capped to the most recent 200 records.
 
-Right-clicking the status bar opens a menu whose items call `commands.executeCommandById("<plugin-id>:<command-id>")` through `SalahPlugin.executeCommand()`. The menu offers **Update Iqama times**, **Set Hijri offset**, **View calendar**, and **Display prayer times**. The menu deliberately does not call modal methods directly, so keyboard shortcuts, the command palette, and the context menu all use the same command path. Obsidian's `onClickEvent()` helper binds both `"click"` and `"auxclick"`; the status-bar handler must ignore non-primary buttons, otherwise a right click opens the schedule modal first and the `"contextmenu"` event lands on the modal backdrop instead of the status bar.
+Right-clicking the status bar opens a menu whose items call `commands.executeCommandById("<plugin-id>:<command-id>")` through `SalahPlugin.executeCommand()`. The menu offers **Update iqama times**, **Set date offset**, **View calendar**, and **Display prayer times**. The menu deliberately does not call modal methods directly, so keyboard shortcuts, the command palette, and the context menu all use the same command path. Obsidian's `onClickEvent()` helper binds both `"click"` and `"auxclick"`; the status-bar handler must ignore non-primary buttons, otherwise a right click opens the schedule modal first and the `"contextmenu"` event lands on the modal backdrop instead of the status bar.
 
-The prayer-times modal reuses the same command executor for its **Update Iqama times**, **Set Hijri offset**, and **View calendar** buttons. The command modal opens over the schedule modal, matching how the time picker stacks over the Iqama editor. Because the buttons go through the command registry, a future change to any command automatically applies to the menu, the buttons, and the palette.
+The prayer-times modal reuses the same command executor for its **Update iqama times**, **Set date offset**, and **View calendar** buttons. The command modal opens over the schedule modal, matching how the time picker stacks over the Iqama editor. Because the buttons go through the command registry, a future change to any command automatically applies to the menu, the buttons, and the palette.
 
 ## Schedule modal layout
 
@@ -63,4 +65,10 @@ The modal does not centre rows by measuring `getBoundingClientRect()`: layout ti
 
 Run `npm test` for the pure unit tests. The suite covers time parsing and wraparound, countdown rounding, next-event selection, time-picker row geometry, Hijri rollover selection, 29/30-day month lengths, a 29-to-1 boundary, invalid dates, weekly/monthly fasting markers, midnight and Last Third calculations, IP-location payload parsing, and Iqama/custom event construction.
 
-Run `npm run build` before release. This first runs `tsc --noEmit`, then creates the Obsidian `main.js` bundle. The release bundle is generated locally and is ignored by Git; attach `main.js`, `manifest.json`, and `styles.css` to the GitHub release for the matching manifest version.
+Run `npm run build` before release. This first runs `tsc --noEmit`, then creates the Obsidian `main.js` bundle. `main.js` is ignored by Git; the release workflow builds it from source.
+
+Run `npm run lint:obsidian` to check the source against the official `eslint-plugin-obsidianmd` recommended rules. The configuration also enables the type-checked TypeScript rules, so new `any` leaks or untyped API payloads fail the check. The repository currently reports zero errors and zero warnings.
+
+## Release process
+
+`.github/workflows/release.yml` runs on any pushed tag. It installs dependencies with `npm ci`, runs the tests, builds the plugin, verifies that the tag matches `manifest.json`, creates a build-provenance attestation, and publishes a GitHub release with `main.js`, `manifest.json`, and `styles.css` attached. The tag must match the manifest version exactly (for example `1.0.4`, without a `v` prefix).

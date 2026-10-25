@@ -8,6 +8,13 @@ import type { CalendarApiDate, CalendarEntry } from "./calendar-data";
 
 type CalendarMode = "hijri" | "gregorian";
 type CalendarResponse = { code: number; data: CalendarApiDate[] };
+type CalendarDayResponse = {
+  code?: number;
+  data?: {
+    timings?: Record<string, string>;
+    meta?: { timezone?: string; timezonestring?: string };
+  };
+};
 
 const HIJRI_MONTHS = ["Muharram", "Safar", "Rabi 1", "Rabi 2", "Jumada 1", "Jumada 2", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah"];
 const GREGORIAN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -200,7 +207,7 @@ export class PrayerCalendarModal extends Modal {
       return url;
     };
 
-    let payload: any;
+    let payload: CalendarDayResponse;
     try {
       const response = await requestUrl({
         url: makeUrl(deviceDate).toString(),
@@ -208,8 +215,8 @@ export class PrayerCalendarModal extends Modal {
         headers: { Accept: "application/json" },
       });
       if (response.status < 200 || response.status >= 300) return { locationDate: deviceDate, rollover: 0 };
-      payload = response.json;
-      if (payload?.code !== 200 || !payload?.data?.timings) return { locationDate: deviceDate, rollover: 0 };
+      payload = response.json as CalendarDayResponse;
+      if (payload.code !== 200 || !payload.data?.timings) return { locationDate: deviceDate, rollover: 0 };
 
       const timeZone = payload.data.meta?.timezone || payload.data.meta?.timezonestring;
       const locationDate = dateAtLocation(now, timeZone);
@@ -220,8 +227,8 @@ export class PrayerCalendarModal extends Modal {
           headers: { Accept: "application/json" },
         });
         if (refetch.status < 200 || refetch.status >= 300) return { locationDate, rollover: 0 };
-        payload = refetch.json;
-        if (payload?.code !== 200 || !payload?.data?.timings) return { locationDate, rollover: 0 };
+        payload = refetch.json as CalendarDayResponse;
+        if (payload.code !== 200 || !payload.data?.timings) return { locationDate, rollover: 0 };
       }
 
       const maghrib = payload.data.timings.Maghrib;

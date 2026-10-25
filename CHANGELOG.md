@@ -2,12 +2,15 @@
 
 ## 1.0.4
 
-- Added **View calendar** to the prayer-times modal, alongside the existing **Update Iqama times** and **Set Hijri offset** buttons.
+- Added **View calendar** to the prayer-times modal, alongside the existing **Update iqama times** and **Set date offset** buttons.
 - Added calculated **Midnight** (the midpoint between Maghrib and the next Fajr) to the daily schedule, status-bar tooltip, countdown events, and calendar day details. Midnight has no Iqama.
 - Brightened the current day in the calendar with an accent-tinted background, accent border, and stronger text; it is also exposed as `aria-current="date"`.
 - Hardened IP location detection: per-provider 10-second timeouts, explicit HTTP status checks, numeric-string coercion, rejection of missing/null/out-of-range and placeholder `0,0` coordinates, and a status-bar setup hint when detection fails.
 - Added unit tests for midnight calculation and IP-location payload parsing.
-- Updated the README and architecture notes for the location flow, midnight, calendar highlighting, and modal actions.
+- Renamed the user-facing commands **Set Hijri offset** and **Update Iqama times** to **Set date offset** and **Update iqama times** for sentence-case consistency. Command IDs are unchanged, so existing hotkeys keep working.
+- Rewrote the plugin entry point as fully typed TypeScript and added the official `eslint-plugin-obsidianmd` recommended configuration with `npm run lint:obsidian`. The project now passes with zero errors and zero warnings.
+- Removed the two remaining `!important` declarations from `styles.css` in favour of scoped selectors, and added a tag-triggered GitHub Actions release workflow.
+- Updated the README and architecture notes for the location flow, midnight, calendar highlighting, modal actions, and the automated checks.
 
 ## 1.0.3
 

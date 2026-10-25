@@ -49,7 +49,7 @@ export class LocationSearchModal extends SuggestModal<GeocodedPlace> {
   }
 
   renderSuggestion(place: GeocodedPlace, element: HTMLElement) {
-    element.createEl("div", { text: place.name });
+    element.createDiv({ text: place.name });
     const context = [place.admin1, place.country].filter(Boolean).join(", ");
     if (context) element.createEl("small", { text: context });
   }

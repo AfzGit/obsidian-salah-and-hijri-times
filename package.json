@@ -6,14 +6,19 @@
     "dev": "esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js --watch",
     "build": "tsc --noEmit && esbuild main.ts --bundle --external:obsidian --format=cjs --target=es2018 --outfile=main.js",
     "bump:patch": "node version-bump.mjs",
+    "lint:obsidian": "eslint .",
     "test": "esbuild tests/plugin.test.ts --bundle --platform=node --format=esm --outfile=.test-build/plugin.test.mjs && node --test .test-build/plugin.test.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@eslint/json": "^0.14.0",
     "@types/node": "^22.0.0",
-    "builtin-modules": "^3.3.0",
     "esbuild": "^0.24.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "^0.4.2",
     "obsidian": "^1.7.2",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.72.0"
   },
   "version": "1.0.4"
 }

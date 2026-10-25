@@ -90,8 +90,10 @@
 .salah-calendar-time-row span:last-child{text-align:right;font-family:var(--font-monospace);}
 
 @media(max-width:520px){.salah-calendar-day{min-height:3rem}.salah-calendar-controls{align-items:flex-start;flex-direction:column}.salah-calendar-legend{gap:.35rem .65rem}}
-.salah-status-hidden{display:none!important;}
-.salah-time-period-hidden{display:none!important;}
+/* Hiding uses a two-class selector instead of `!important` so themes can still
+   override the status bar item if they need to. */
+.status-bar .salah-hijri-status.salah-status-hidden{display:none;}
+.salah-wheel-picker .salah-time-period.salah-time-period-hidden{display:none;}
 .salah-hijri-countdown{color:var(--salah-countdown-color);}
 
 /* Add a gentle fill where color-mix is available; the border/stripe above remains the fallback. */

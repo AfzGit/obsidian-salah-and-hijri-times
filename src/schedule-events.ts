@@ -1,12 +1,12 @@
-import type { Schedule, Settings } from "./types";
+import type { Schedule, Settings, TimelineEvent } from "./types";
 import { formatTime, parseTime } from "./time";
 
 /**
  * Convert a calculated schedule and saved rules into timeline events.
  * Maghrib is the sunset prayer and is the only evening prayer/Iqama entry.
  */
-export function buildConfiguredEvents(schedule: Schedule, settings: Settings) {
-  const events: Array<{ name: string; time: string; kind: "prayer" | "iqama" | "custom" }> = schedule.prayers.map(prayer => ({
+export function buildConfiguredEvents(schedule: Schedule, settings: Settings): TimelineEvent[] {
+  const events: TimelineEvent[] = schedule.prayers.map(prayer => ({
     ...prayer,
     name: prayer.name === "Tahajjud" ? "Last Third" : prayer.name,
     kind: "prayer",

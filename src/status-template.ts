@@ -1,4 +1,4 @@
-import { Schedule } from "./types";
+import type { Schedule } from "./types";
 import { countdown, clock, formatTime, parseTime } from "./time";
 
 export interface UpcomingEvent { name: string; time: string; delta: number }
@@ -25,7 +25,7 @@ export function renderStatusTemplate(
     location: schedule.locationName,
   };
 
-  const fragment = document.createDocumentFragment();
+  const fragment = createFragment();
   let offset = 0;
   TOKEN.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -37,9 +37,7 @@ export function renderStatusTemplate(
     if (value === undefined) {
       fragment.append(document.createTextNode(match[0]));
     } else if (key === "countdown") {
-      const countdownNode = document.createElement("span");
-      countdownNode.className = "salah-hijri-countdown";
-      countdownNode.textContent = value;
+      const countdownNode = createSpan({ cls: "salah-hijri-countdown", text: value });
       countdownNode.style.setProperty("--salah-countdown-color", countdownColor);
       fragment.append(countdownNode);
     } else {

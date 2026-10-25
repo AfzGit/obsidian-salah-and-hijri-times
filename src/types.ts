@@ -35,6 +35,8 @@ export interface Settings {
   customTimes: CustomTime[];
   iqama: Record<string, IqamaRule>;
 }
+/** One row in the daily timeline: a prayer, an Iqama, or a user custom time. */
+export type TimelineEvent = { name: string; time: string; kind: "prayer" | "iqama" | "custom" };
 /** One location/date calculation returned to the status bar, modals, and notifications. */
 export interface Schedule {
   prayers: Array<{ name: string; time: string }>;
