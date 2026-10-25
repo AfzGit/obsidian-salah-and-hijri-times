@@ -167,7 +167,14 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     this.settings.eventNotifications = this.settings.eventNotifications || {};
     this.statusBar = this.addStatusBarItem();
     this.statusBar.addClass("salah-hijri-status");
-    this.statusBar.onClickEvent(() => this.openSchedule());
+    // Obsidian's `onClickEvent()` binds BOTH "click" and "auxclick". A right
+    // click is an auxclick, so without the button guard it would open the
+    // schedule modal before "contextmenu" fires, hiding the status bar and
+    // making the context menu appear not to work.
+    this.statusBar.onClickEvent((event) => {
+      if (event.button !== 0) return;
+      this.openSchedule();
+    });
     // Right-click exposes the same actions as the command palette. Using the
     // command registry (rather than calling methods) keeps hotkeys, menus, and
     // the palette on one code path.

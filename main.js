@@ -930,7 +930,10 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     this.settings.eventNotifications = this.settings.eventNotifications || {};
     this.statusBar = this.addStatusBarItem();
     this.statusBar.addClass("salah-hijri-status");
-    this.statusBar.onClickEvent(() => this.openSchedule());
+    this.statusBar.onClickEvent((event) => {
+      if (event.button !== 0) return;
+      this.openSchedule();
+    });
     this.registerDomEvent(this.statusBar, "contextmenu", (event) => {
       event.preventDefault();
       this.openStatusBarMenu(event);

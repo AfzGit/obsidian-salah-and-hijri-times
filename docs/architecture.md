@@ -45,7 +45,7 @@ The status bar is rendered from the user template. Only the countdown span recei
 
 Notification keys include the date, event kind, name, time, and reached/advance state. Saved keys prevent duplicate notices during refreshes. The key history is capped to the most recent 200 records.
 
-Right-clicking the status bar opens a menu whose items call `commands.executeCommandById("<plugin-id>:<command-id>")`. The menu deliberately does not call modal methods directly, so keyboard shortcuts, the command palette, and the context menu all use the same command path.
+Right-clicking the status bar opens a menu whose items call `commands.executeCommandById("<plugin-id>:<command-id>")`. The menu deliberately does not call modal methods directly, so keyboard shortcuts, the command palette, and the context menu all use the same command path. Obsidian's `onClickEvent()` helper binds both `"click"` and `"auxclick"`; the status-bar handler must ignore non-primary buttons, otherwise a right click opens the schedule modal first and the `"contextmenu"` event lands on the modal backdrop instead of the status bar.
 
 ## Time picker alignment
 
