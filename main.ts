@@ -408,6 +408,18 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     this.statusBar.title = scheduleLines(this.schedule, events, this.settings.use24HourTime).join("\n");
   }
   /**
+   * Execute one of this plugin's commands by short ID.
+   *
+   * Menus and modal action buttons use this so they always go through the
+   * command registry, matching the command palette and user hotkeys.
+   */
+  executeCommand(commandId) {
+    const fullId = this.manifest.id + ":" + commandId;
+    if (this.app.commands.executeCommandById(fullId)) return true;
+    new import_obsidian5.Notice("Command unavailable: " + fullId, 1e4);
+    return false;
+  }
+  /**
    * Show actions for the status-bar countdown.
    *
    * Every item delegates to a registered command ID (`<plugin-id>:<command-id>`)
@@ -417,15 +429,10 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
    */
   openStatusBarMenu(event) {
     const menu = new import_obsidian5.Menu();
-    const runCommand = (commandId) => {
-      const fullId = this.manifest.id + ":" + commandId;
-      if (!this.app.commands.executeCommandById(fullId)) {
-        new import_obsidian5.Notice("Command unavailable: " + fullId, 1e4);
-      }
-    };
-    menu.addItem((item) => item.setTitle("Update Iqama times").setIcon("clock").onClick(() => runCommand("edit-iqama-times")));
-    menu.addItem((item) => item.setTitle("View calendar").setIcon("calendar-days").onClick(() => runCommand("open-prayer-calendar")));
-    menu.addItem((item) => item.setTitle("Display prayer times").setIcon("list").onClick(() => runCommand("display-prayer-times")));
+    menu.addItem((item) => item.setTitle("Update Iqama times").setIcon("clock").onClick(() => this.executeCommand("edit-iqama-times")));
+    menu.addItem((item) => item.setTitle("Set Hijri offset").setIcon("calendar-plus").onClick(() => this.executeCommand("set-hijri-offset")));
+    menu.addItem((item) => item.setTitle("View calendar").setIcon("calendar-days").onClick(() => this.executeCommand("open-prayer-calendar")));
+    menu.addItem((item) => item.setTitle("Display prayer times").setIcon("list").onClick(() => this.executeCommand("display-prayer-times")));
     menu.showAtMouseEvent(event);
   }
   openSchedule() {
@@ -434,7 +441,7 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
       return;
     }
     const events = buildConfiguredEvents(this.schedule, this.settings);
-    new ScheduleModal(this.app, this.schedule, events, this.settings.use24HourTime).open();
+    new ScheduleModal(this.app, this.schedule, events, this.settings.use24HourTime, (commandId) => this.executeCommand(commandId)).open();
   }
 };
 /**
@@ -442,32 +449,53 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
  * "Display prayer times" command/menu item.
  */
 var ScheduleModal = class extends import_obsidian5.Modal {
-  constructor(app, schedule, events, use24Hour) {
+  constructor(app, schedule, events, use24Hour, executeCommand) {
     super(app);
     this.schedule = schedule;
     this.events = events;
     this.use24Hour = use24Hour;
+    this.executeCommand = executeCommand;
   }
   onOpen() {
     this.contentEl.addClass("salah-schedule-modal");
     this.contentEl.createEl("h2", { text: "Prayer times" });
+    // A real table (not per-row grids) keeps the Iqama brackets aligned: the
+    // prayer-time column is right-aligned, so short times like "4:59 am" and
+    // long ones like "12:00 pm" end at the same x position. Grid rows sized to
+    // their own content cannot do that because each row is an independent grid.
+    const table = this.contentEl.createEl("table", { cls: "salah-schedule-table" });
+    const body = table.createEl("tbody");
     for (const prayer of this.schedule.prayers) {
-      const row = this.contentEl.createDiv({ cls: "salah-schedule-row" });
-      const label = row.createSpan({ cls: "salah-schedule-name salah-prayer-" + prayer.name.toLowerCase(), text: prayerDisplayName(prayer.name) });
+      const row = body.createEl("tr", { cls: "salah-schedule-row" });
+      const label = row.createEl("th", { cls: "salah-schedule-name salah-prayer-" + prayer.name.toLowerCase(), text: prayerDisplayName(prayer.name) });
+      label.setAttr("scope", "row");
       label.setAttr("aria-label", prayer.name);
-      row.createSpan({ cls: "salah-schedule-colon", text: ":" });
+      row.createEl("td", { cls: "salah-schedule-colon", text: ":" });
+      row.createEl("td", { cls: "salah-schedule-prayer-time", text: displayClock(prayer.time, this.use24Hour) });
       const iqama = this.events.find((event) => event.kind === "iqama" && event.name === iqamaEventName(prayer.name));
-      row.createSpan({ cls: "salah-schedule-times", text: displayClock(prayer.time, this.use24Hour) + " [" + (iqama ? displayClock(iqama.time, this.use24Hour) : "\u2014") + "]" });
+      row.createEl("td", { cls: "salah-schedule-iqama-time", text: "[" + (iqama ? displayClock(iqama.time, this.use24Hour) : "\u2014") + "]" });
     }
     for (const event of this.events.filter((item) => item.kind === "custom")) {
-      const row = this.contentEl.createDiv({ cls: "salah-schedule-row salah-schedule-custom" });
-      row.createSpan({ cls: "salah-schedule-name", text: event.name });
-      row.createSpan({ cls: "salah-schedule-colon", text: ":" });
-      row.createSpan({ cls: "salah-schedule-times", text: displayClock(event.time, this.use24Hour) });
+      const row = body.createEl("tr", { cls: "salah-schedule-row salah-schedule-custom" });
+      const label = row.createEl("th", { cls: "salah-schedule-name", text: event.name });
+      label.setAttr("scope", "row");
+      row.createEl("td", { cls: "salah-schedule-colon", text: ":" });
+      const time = row.createEl("td", { cls: "salah-schedule-prayer-time", text: displayClock(event.time, this.use24Hour) });
+      time.colSpan = 2;
     }
     const meta = this.contentEl.createDiv({ cls: "salah-schedule-meta" });
     meta.createEl("div", { text: "Hijri: " + this.schedule.hijriDate });
     meta.createEl("div", { text: "Location: " + this.schedule.locationName });
+    // These buttons run the registered commands rather than opening a modal
+    // directly, so they behave exactly like the palette/hotkey versions. The
+    // command modal stacks over this one, the same way the time picker stacks
+    // over the Iqama editor.
+    const actions = this.contentEl.createDiv({ cls: "salah-schedule-actions" });
+    // No `setIcon()` here: ButtonComponent.setIcon() empties the button, which
+    // would wipe the label set by `setButtonText()`. Text-only keeps both
+    // actions readable in every theme.
+    new import_obsidian5.ButtonComponent(actions).setButtonText("Update Iqama times").onClick(() => this.executeCommand("edit-iqama-times"));
+    new import_obsidian5.ButtonComponent(actions).setButtonText("Set Hijri offset").onClick(() => this.executeCommand("set-hijri-offset"));
   }
 };
 /**

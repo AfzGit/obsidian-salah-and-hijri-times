@@ -11,15 +11,23 @@
 .salah-time-picker select{min-width:5em;padding:var(--size-4-1);}
 
 .salah-schedule-modal{min-width:min(26rem,80vw);}
-.salah-schedule-row{display:grid;grid-template-columns:10ch 1ch max-content;align-items:baseline;gap:var(--size-4-2);font-family:var(--font-monospace);font-variant-numeric:tabular-nums;line-height:1.65;}
-.salah-schedule-name{white-space:pre;color:var(--text-normal);text-align:left;}
-.salah-schedule-colon{color:var(--text-normal);text-align:center;}
-.salah-schedule-times{white-space:nowrap;}
+.salah-schedule-table{border-collapse:collapse;border:0;font-family:var(--font-monospace);font-variant-numeric:tabular-nums;line-height:1.65;}
+/* `:where()` keeps this reset at zero specificity so the per-cell padding
+   rules below still apply. */
+.salah-schedule-table :where(th,td){padding:0;border:0;background:none;vertical-align:baseline;}
+.salah-schedule-row{font-family:var(--font-monospace);font-variant-numeric:tabular-nums;}
+.salah-schedule-name{white-space:pre;color:var(--text-normal);text-align:left;font-weight:inherit;padding-right:var(--size-4-2);}
+.salah-schedule-colon{color:var(--text-normal);text-align:center;padding-right:var(--size-4-2);}
+/* Right-align the prayer time so the Iqama brackets start at one x position
+   regardless of whether the clock string is 4 or 5 characters wide. */
+.salah-schedule-prayer-time{white-space:nowrap;text-align:right;}
+.salah-schedule-iqama-time{white-space:nowrap;text-align:left;padding-left:var(--size-4-2);}
 .salah-prayer-fajr,.salah-prayer-dhuhr,.salah-prayer-asr,.salah-prayer-maghrib,.salah-prayer-isha{color:var(--interactive-accent);}
 .theme-light .salah-prayer-sunrise{color:#c2410c;}
 .theme-dark .salah-prayer-sunrise{color:#fbbf24;}
 .salah-schedule-meta{margin-top:1em;padding-top:.5em;border-top:1px solid var(--background-modifier-border);}
 .salah-schedule-custom{color:var(--text-muted);}
+.salah-schedule-actions{display:flex;flex-wrap:wrap;gap:var(--size-4-2);justify-content:flex-end;margin-top:1em;}
 
 
 /* Time picker geometry.

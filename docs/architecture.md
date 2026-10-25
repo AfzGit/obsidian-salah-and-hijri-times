@@ -45,7 +45,13 @@ The status bar is rendered from the user template. Only the countdown span recei
 
 Notification keys include the date, event kind, name, time, and reached/advance state. Saved keys prevent duplicate notices during refreshes. The key history is capped to the most recent 200 records.
 
-Right-clicking the status bar opens a menu whose items call `commands.executeCommandById("<plugin-id>:<command-id>")`. The menu deliberately does not call modal methods directly, so keyboard shortcuts, the command palette, and the context menu all use the same command path. Obsidian's `onClickEvent()` helper binds both `"click"` and `"auxclick"`; the status-bar handler must ignore non-primary buttons, otherwise a right click opens the schedule modal first and the `"contextmenu"` event lands on the modal backdrop instead of the status bar.
+Right-clicking the status bar opens a menu whose items call `commands.executeCommandById("<plugin-id>:<command-id>")` through `SalahPlugin.executeCommand()`. The menu offers **Update Iqama times**, **Set Hijri offset**, **View calendar**, and **Display prayer times**. The menu deliberately does not call modal methods directly, so keyboard shortcuts, the command palette, and the context menu all use the same command path. Obsidian's `onClickEvent()` helper binds both `"click"` and `"auxclick"`; the status-bar handler must ignore non-primary buttons, otherwise a right click opens the schedule modal first and the `"contextmenu"` event lands on the modal backdrop instead of the status bar.
+
+The prayer-times modal reuses the same command executor for its **Update Iqama times** and **Set Hijri offset** buttons. The command modal opens over the schedule modal, matching how the time picker stacks over the Iqama editor. Because the buttons go through the command registry, a future change to either command automatically applies to the menu, the buttons, and the palette.
+
+## Schedule modal layout
+
+The prayer-times modal renders one `<table class="salah-schedule-table">` rather than one grid per row. Each row has four cells: prayer name (`<th scope="row">`), colon, prayer time, and Iqama time. The prayer-time cell is right-aligned, so `4:59 am` and `12:00 pm` end at the same x position and the Iqama brackets line up. Per-row grids could not do this: each row sized its own columns independently, so variable-length clock strings shifted the brackets. Custom daily times span the prayer-time and Iqama columns with `colspan="2"`.
 
 ## Time picker alignment
 
