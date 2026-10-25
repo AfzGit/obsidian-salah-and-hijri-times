@@ -1,6 +1,7 @@
 import { Modal, Setting, requestUrl } from "obsidian";
 import type { App } from "obsidian";
 import { formatTime } from "./time";
+import { dateAtLocation, hijriAdjustmentForNow, minutesAtLocation, shiftGregorianDate } from "./hijri-date";
 import type { Settings } from "./types";
 import { calculateLastThird, fastingMarkers, mapCalendarDates } from "./calendar-data";
 import type { CalendarApiDate, CalendarEntry } from "./calendar-data";
@@ -12,6 +13,15 @@ const HIJRI_MONTHS = ["Muharram", "Safar", "Rabi 1", "Rabi 2", "Jumada 1", "Juma
 const GREGORIAN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const responseCache = new Map<string, CalendarEntry[]>();
+
+/** Compare API Gregorian dates by numeric components so padded/unpadded DD-MM-YYYY forms match. */
+function sameCalendarDate(left: string, right: string): boolean {
+  const parse = (value: string) => {
+    const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(value);
+    return match ? `${Number(match[3])}-${Number(match[2])}-${Number(match[1])}` : value;
+  };
+  return parse(left) === parse(right);
+}
 
 /** Format API time values consistently with the user's time-format preference. */
 function displayTime(value: string, use24Hour: boolean): string {
@@ -77,7 +87,7 @@ export class PrayerCalendarModal extends Modal {
     this.year = today.getFullYear();
     this.month = today.getMonth() + 1;
     try {
-      const entries = await this.loadMonth(0);
+      const entries = await this.loadMonth();
       const todayEntry = entries.find(entry => this.isToday(entry.gregorian));
       if (todayEntry) {
         this.currentHijriYear = todayEntry.hijriYear;
@@ -173,22 +183,181 @@ export class PrayerCalendarModal extends Modal {
     return `${GREGORIAN_MONTHS[this.month - 1]} ${this.year}`;
   }
 
-  /** Load/cache a single API calendar month; cap the in-memory cache to 12 results. */
-  private async loadMonth(adjustment = this.settings.hijriOffset): Promise<CalendarEntry[]> {
+  /** Resolve the current location-day and Maghrib rollover exactly like the daily schedule. */
+  private async getCurrentRolloverContext(): Promise<{ locationDate: string; rollover: number }> {
+    if (this.settings.hijriRollover !== "maghrib") return { locationDate: "", rollover: 0 };
+
+    const now = new Date();
+    const deviceDate = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+    const { latitude, longitude } = this.settings.coordinates || {};
+    if (latitude === undefined || longitude === undefined) return { locationDate: deviceDate, rollover: 0 };
+
+    const makeUrl = (date: string) => {
+      const url = new URL(`https://api.aladhan.com/v1/timings/${date}`);
+      url.searchParams.set("latitude", String(latitude));
+      url.searchParams.set("longitude", String(longitude));
+      url.searchParams.set("method", String(this.settings.calculationMethod));
+      return url;
+    };
+
+    let payload: any;
+    try {
+      const response = await requestUrl({
+        url: makeUrl(deviceDate).toString(),
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      if (response.status < 200 || response.status >= 300) return { locationDate: deviceDate, rollover: 0 };
+      payload = response.json;
+      if (payload?.code !== 200 || !payload?.data?.timings) return { locationDate: deviceDate, rollover: 0 };
+
+      const timeZone = payload.data.meta?.timezone || payload.data.meta?.timezonestring;
+      const locationDate = dateAtLocation(now, timeZone);
+      if (locationDate !== deviceDate) {
+        const refetch = await requestUrl({
+          url: makeUrl(locationDate).toString(),
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        if (refetch.status < 200 || refetch.status >= 300) return { locationDate, rollover: 0 };
+        payload = refetch.json;
+        if (payload?.code !== 200 || !payload?.data?.timings) return { locationDate, rollover: 0 };
+      }
+
+      const maghrib = payload.data.timings.Maghrib;
+      if (typeof maghrib !== "string") return { locationDate, rollover: 0 };
+      const base = maghrib.match(/^(\d{1,2}):(\d{2})/);
+      if (!base) return { locationDate, rollover: 0 };
+      const baseMinutes = Number(base[1]) * 60 + Number(base[2]);
+      const prayerOffset = this.settings.prayerTimeOffsets?.Maghrib || 0;
+      const adjustedMaghrib = formatTime(baseMinutes + prayerOffset);
+      const nowMinutes = minutesAtLocation(now, payload.data.meta?.timezone || payload.data.meta?.timezonestring || undefined);
+      const rollover = hijriAdjustmentForNow(0, "maghrib", nowMinutes, adjustedMaghrib);
+      return { locationDate, rollover };
+    } catch {
+      return { locationDate: deviceDate, rollover: 0 };
+    }
+  }
+
+  /** Apply the configured Hijri offset plus today's location-time rollover. */
+  private effectiveHijriOffset(
+    baseOffset: number,
+    date: Date,
+    context: { locationDate: string; rollover: number },
+    hijriTargetMode = false,
+  ): number {
+    if (!context.locationDate || !context.rollover) return baseOffset;
+    const entryDate = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
+    // In Hijri-month mode, targetEntry T normally appears at T - baseOffset.
+    // After Maghrib the current day must instead show the next Hijri day, so the
+    // target entry that should move onto today is the one whose normal displayed
+    // date is tomorrow. This matters at Hijri month boundaries.
+    const rolloverDate = hijriTargetMode
+      ? shiftGregorianDate(context.locationDate, 1)
+      : context.locationDate;
+    return sameCalendarDate(entryDate, rolloverDate) ? baseOffset + context.rollover : baseOffset;
+  }
+
+  /** Load a month and apply the configured Hijri offset without relying on API adjustment. */
+  private async loadMonth(): Promise<CalendarEntry[]> {
     if (!this.settings.coordinates) throw new Error("Set a location in plugin settings to view the calendar.");
-    const endpoint = this.mode === "hijri" ? "hijriCalendar" : "calendar";
-    const query = new URLSearchParams({
-      latitude: String(this.settings.coordinates.latitude),
-      longitude: String(this.settings.coordinates.longitude),
-      method: String(this.settings.calculationMethod),
-      adjustment: String(adjustment),
+
+    const offset = this.settings.hijriOffset || 0;
+    const rolloverContext = await this.getCurrentRolloverContext();
+
+    if (this.mode === "hijri") {
+      // The selected month/year are a Hijri month. With an offset, the Gregorian
+      // days that should display that month are the provider's target Hijri dates
+      // shifted backward by the configured number of days.
+      const targetEntries = await this.fetchCalendarMonth("hijriCalendar", this.year, this.month);
+      if (!offset && !rolloverContext.rollover) return targetEntries;
+
+      const shiftedMonths = new Map<string, CalendarEntry[]>();
+      const shiftedDates = targetEntries.map(target => {
+        const effectiveOffset = this.effectiveHijriOffset(offset, target.gregorian, rolloverContext, true);
+        return {
+          target,
+          date: shiftGregorianDate(target.api.date.gregorian.date, -effectiveOffset),
+        };
+      });
+
+      const needed = new Set<string>();
+      for (const item of shiftedDates) {
+        const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(item.date);
+        if (match) needed.add(`${Number(match[3])}-${Number(match[2])}`);
+      }
+      for (const key of needed) {
+        const [year, month] = key.split("-").map(Number);
+        shiftedMonths.set(key, await this.fetchCalendarMonth("calendar", year, month));
+      }
+
+      return shiftedDates.map(({ target, date }) => {
+        const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(date);
+        if (!match) return target;
+        const key = `${Number(match[3])}-${Number(match[2])}`;
+        const shiftedEntry = shiftedMonths.get(key)?.find(candidate => sameCalendarDate(candidate.api.date.gregorian.date, date));
+        if (!shiftedEntry) return target;
+
+        // Keep the prayer times/Gregorian date of the actual displayed day while
+        // assigning the target Hijri label for the selected month.
+        return {
+          ...shiftedEntry,
+          hijriDay: target.hijriDay,
+          hijriMonth: target.hijriMonth,
+          hijriYear: target.hijriYear,
+        };
+      });
+    }
+
+    // Gregorian view: keep each day's prayer times, but resolve its Hijri label
+    // from the Gregorian day after applying the configured offset.
+    const baseEntries = await this.fetchCalendarMonth("calendar", this.year, this.month);
+    if (!offset && !rolloverContext.rollover) return baseEntries;
+
+    const shiftedMonths = new Map<string, CalendarEntry[]>();
+    const needed = new Set<string>();
+    for (const entry of baseEntries) {
+      const effectiveOffset = this.effectiveHijriOffset(offset, entry.gregorian, rolloverContext);
+      const shifted = shiftGregorianDate(entry.api.date.gregorian.date, effectiveOffset);
+      const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(shifted);
+      if (match) needed.add(`${Number(match[3])}-${Number(match[2])}`);
+    }
+    for (const key of needed) {
+      const [year, month] = key.split("-").map(Number);
+      shiftedMonths.set(key, await this.fetchCalendarMonth("calendar", year, month));
+    }
+
+    return baseEntries.map(entry => {
+      const effectiveOffset = this.effectiveHijriOffset(offset, entry.gregorian, rolloverContext);
+      const shifted = shiftGregorianDate(entry.api.date.gregorian.date, effectiveOffset);
+      const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(shifted);
+      if (!match) return entry;
+      const key = `${Number(match[3])}-${Number(match[2])}`;
+      const shiftedEntry = shiftedMonths.get(key)?.find(candidate => sameCalendarDate(candidate.api.date.gregorian.date, shifted));
+      if (!shiftedEntry) return entry;
+      return {
+        ...entry,
+        hijriDay: shiftedEntry.hijriDay,
+        hijriMonth: shiftedEntry.hijriMonth,
+        hijriYear: shiftedEntry.hijriYear,
+      };
     });
-    const key = `${endpoint}/${this.year}/${this.month}?${query}`;
+  }
+
+  /** Fetch/cache one provider calendar month with no Hijri adjustment. */
+  private async fetchCalendarMonth(endpoint: string, year: number, month: number): Promise<CalendarEntry[]> {
+    const query = new URLSearchParams({
+      latitude: String(this.settings.coordinates?.latitude),
+      longitude: String(this.settings.coordinates?.longitude),
+      method: String(this.settings.calculationMethod),
+      adjustment: "0",
+    });
+    const key = `${endpoint}/${year}/${month}?${query}`;
     const cached = responseCache.get(key);
     if (cached) return cached;
 
     const response = await requestUrl({
-      url: `https://api.aladhan.com/v1/${endpoint}/${this.year}/${this.month}?${query}`,
+      url: `https://api.aladhan.com/v1/${endpoint}/${year}/${month}?${query}`,
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -198,7 +367,7 @@ export class PrayerCalendarModal extends Modal {
 
     const entries = mapCalendarDates(payload.data);
     responseCache.set(key, entries);
-    if (responseCache.size > 12) responseCache.delete(responseCache.keys().next().value as string);
+    if (responseCache.size > 24) responseCache.delete(responseCache.keys().next().value as string);
     return entries;
   }
 
@@ -211,7 +380,7 @@ export class PrayerCalendarModal extends Modal {
     for (const entry of entries) {
       const cell = grid.createEl("button", {
         cls: "salah-calendar-day",
-        attr: { "aria-label": `${entry.api.date.gregorian.weekday.en}, ${entry.api.date.gregorian.date}; Hijri ${entry.api.date.hijri.date}` },
+        attr: { "aria-label": `${entry.api.date.gregorian.weekday.en}, ${entry.api.date.gregorian.date}; Hijri ${entry.hijriDay} ${HIJRI_MONTHS[entry.hijriMonth - 1]} ${entry.hijriYear}` },
       });
       cell.createSpan({ cls: "salah-calendar-gregorian", text: String(entry.gregorian.getDate()) });
       cell.createSpan({ cls: "salah-calendar-hijri", text: String(entry.hijriDay) });
@@ -234,6 +403,16 @@ export class PrayerCalendarModal extends Modal {
     return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
   }
 
+  /** Apply the same per-prayer offsets used by the daily schedule to calendar details. */
+  private adjustedPrayerTime(name: string, value: string): string {
+    const match = /^(\d{1,2}):(\d{2})(.*)$/.exec(value);
+    if (!match) return value;
+    const base = Number(match[1]) * 60 + Number(match[2]);
+    if (!Number.isInteger(base) || base < 0 || base >= 1440) return value;
+    const offset = this.settings.prayerTimeOffsets?.[name] || 0;
+    return formatTime(base + offset) + match[3];
+  }
+
   /** Show the selected day prayer times with the same label colors as the schedule modal. */
   private renderDetails(entry: CalendarEntry, detail: HTMLElement) {
     detail.empty();
@@ -242,15 +421,16 @@ export class PrayerCalendarModal extends Modal {
     for (const name of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"]) {
       const time = entry.api.timings[name];
       if (!time) continue;
+      const adjusted = this.adjustedPrayerTime(name, time);
       const row = rows.createDiv({ cls: "salah-calendar-time-row" });
       row.createSpan({ cls: `salah-prayer-${name.toLowerCase()}`, text: name });
-      row.createSpan({ text: displayTime(time, this.settings.use24HourTime) });
+      row.createSpan({ text: displayTime(adjusted, this.settings.use24HourTime) });
     }
 
     const maghrib = entry.api.timings.Maghrib;
     const fajr = entry.api.timings.Fajr;
     if (!maghrib || !fajr) return;
-    const lastThird = calculateLastThird(maghrib, fajr);
+    const lastThird = calculateLastThird(this.adjustedPrayerTime("Maghrib", maghrib), this.adjustedPrayerTime("Fajr", fajr));
     if (!lastThird) return;
     const row = rows.createDiv({ cls: "salah-calendar-time-row" });
     row.createSpan({ text: "Last Third" });

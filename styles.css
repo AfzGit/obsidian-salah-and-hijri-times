@@ -1,3 +1,8 @@
+/* Salah and Hijri Times styles.
+   Sections: status bar/template, time picker (geometry mirrored in
+   src/time-wheel.ts), schedule, notifications, calendar, and shared visibility
+   helpers. Theme colours come from Obsidian CSS variables; hard-coded colours
+   are fallbacks for optional variables or fixed prayer/countdown accents. */
 .salah-hijri-status{cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
 .salah-template-setting{display:block;}
 .salah-template-setting .setting-item-control{display:block;width:100%;max-width:none;margin-top:.5em;}
@@ -17,14 +22,22 @@
 .salah-schedule-custom{color:var(--text-muted);}
 
 
+/* Time picker geometry.
+   Keep these three custom properties in sync with src/time-wheel.ts. Five rows
+   are visible at rest (up2, up1, middle, down1, down2), two spacer rows above
+   and below let edge values reach the middle, and the resting scroll offset is
+   always index * row-height. TimePickerModal also writes the variables from the
+   unit-tested constants, so this block is the fallback for plain HTML previews. */
 .salah-time-modal{width:min(22rem,calc(100vw - 2rem));}
 .salah-time-modal-content{text-align:center;}
-.salah-wheel-picker{display:flex;align-items:center;justify-content:center;gap:.6rem;margin:1.5rem auto 1rem;}
+.salah-wheel-picker{--salah-time-row-height:38px;--salah-time-visible-rows:5;--salah-time-spacer-rows:2;display:flex;align-items:center;justify-content:center;gap:.6rem;margin:1.5rem auto 1rem;}
 .salah-time-wheels{display:flex;align-items:center;gap:.25rem;}
-.salah-time-wheel{height:190px;width:4.25rem;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:none;scrollbar-width:none;box-sizing:border-box;mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);}
+.salah-time-wheel{height:calc(var(--salah-time-row-height) * var(--salah-time-visible-rows));width:4.25rem;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scroll-behavior:auto;scrollbar-width:none;box-sizing:border-box;mask-image:linear-gradient(to bottom,transparent 0,#000 18%,#000 82%,transparent 100%);}
 .salah-time-wheel::-webkit-scrollbar{display:none;width:0;height:0;}
-.salah-time-wheel-spacer{height:76px;}
-.salah-time-wheel-item{height:38px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--text-muted);cursor:pointer;user-select:none;}
+/* Hidden until TimePickerModal has applied the exact initial scroll offsets. */
+.salah-wheel-picker:not(.is-ready) .salah-time-wheel,.salah-wheel-picker:not(.is-ready) .salah-time-period{visibility:hidden;}
+.salah-time-wheel-spacer{height:calc(var(--salah-time-row-height) * var(--salah-time-spacer-rows));}
+.salah-time-wheel-item{height:var(--salah-time-row-height);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--text-muted);cursor:pointer;user-select:none;scroll-snap-align:center;scroll-snap-stop:always;}
 .salah-time-wheel-item.is-selected{color:var(--text-normal);font-weight:var(--font-semibold);background:var(--background-modifier-hover);border-radius:var(--radius-s);}
 .salah-time-separator{font-size:1.4rem;font-variant-numeric:tabular-nums;}
 .salah-time-period{min-width:3.25rem;height:2.4rem;border:1px solid var(--background-modifier-border);border-radius:var(--radius-m);background:var(--background-secondary);color:var(--text-normal);}

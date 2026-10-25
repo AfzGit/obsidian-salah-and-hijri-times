@@ -43,7 +43,13 @@ export function dateAtLocation(date: Date, timeZone?: string): string {
   return `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
 }
 
-/** Shift a location-local Gregorian API date by whole days without month-length assumptions. */
+/**
+ * Shift a location-local Gregorian API date by whole days without month-length assumptions.
+ *
+ * Output is always `DD-MM-YYYY` with zero padding, which is what the AlAdhan
+ * paths accept. Inputs may be padded or unpadded; calendar comparisons must use
+ * numeric components (`sameCalendarDate()` in `calendar.ts`) rather than strings.
+ */
 export function shiftGregorianDate(value: string, offset: number): string {
   const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(value);
   if (!match || !Number.isInteger(offset)) throw new Error("Invalid Gregorian date adjustment.");
@@ -55,5 +61,5 @@ export function shiftGregorianDate(value: string, offset: number): string {
     throw new Error("Invalid Gregorian date adjustment.");
   }
   const date = new Date(Date.UTC(year, month - 1, day + offset));
-  return `${date.getUTCDate()}-${date.getUTCMonth() + 1}-${date.getUTCFullYear()}`;
+  return `${String(date.getUTCDate()).padStart(2, "0")}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${date.getUTCFullYear()}`;
 }

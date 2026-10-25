@@ -104,6 +104,61 @@ function countdown(milliseconds) {
   return hours ? `${hours}h ${String(totalMinutes % 60).padStart(2, "0")}m` : `${totalMinutes}m`;
 }
 
+// src/hijri-date.ts
+function hijriAdjustmentForNow(configuredOffset, rollover, currentMinutes, maghribTime) {
+  if (rollover !== "maghrib") return configuredOffset;
+  const match = /^(\d{1,2}):(\d{2})/.exec(maghribTime);
+  if (!match) return configuredOffset;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return configuredOffset;
+  const maghribMinutes = hour * 60 + minute;
+  return currentMinutes >= maghribMinutes ? configuredOffset + 1 : configuredOffset;
+}
+function minutesAtLocation(date, timeZone) {
+  var _a, _b;
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+      const hour = Number((_a = parts.find((part) => part.type === "hour")) == null ? void 0 : _a.value);
+      const minute = Number((_b = parts.find((part) => part.type === "minute")) == null ? void 0 : _b.value);
+      if (Number.isInteger(hour) && hour >= 0 && hour < 24 && Number.isInteger(minute) && minute >= 0 && minute < 60) return hour * 60 + minute;
+    } catch (e) {
+    }
+  }
+  return date.getHours() * 60 + date.getMinutes();
+}
+function dateAtLocation(date, timeZone) {
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", { timeZone, day: "2-digit", month: "2-digit", year: "numeric" }).formatToParts(date);
+      const get = (type) => {
+        var _a;
+        return (_a = parts.find((part) => part.type === type)) == null ? void 0 : _a.value;
+      };
+      const day = get("day");
+      const month = get("month");
+      const year = get("year");
+      if (day && month && year) return `${Number(day)}-${Number(month)}-${year}`;
+    } catch (e) {
+    }
+  }
+  return `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
+}
+function shiftGregorianDate(value, offset) {
+  const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(value);
+  if (!match || !Number.isInteger(offset)) throw new Error("Invalid Gregorian date adjustment.");
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const source = new Date(Date.UTC(year, month - 1, day));
+  if (source.getUTCFullYear() !== year || source.getUTCMonth() !== month - 1 || source.getUTCDate() !== day) {
+    throw new Error("Invalid Gregorian date adjustment.");
+  }
+  const date = new Date(Date.UTC(year, month - 1, day + offset));
+  return `${String(date.getUTCDate()).padStart(2, "0")}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${date.getUTCFullYear()}`;
+}
+
 // src/calendar-data.ts
 function parseCalendarDate(value) {
   const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
@@ -161,6 +216,13 @@ var HIJRI_MONTHS = ["Muharram", "Safar", "Rabi 1", "Rabi 2", "Jumada 1", "Jumada
 var GREGORIAN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 var WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 var responseCache = /* @__PURE__ */ new Map();
+function sameCalendarDate(left, right) {
+  const parse = (value) => {
+    const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(value);
+    return match ? `${Number(match[3])}-${Number(match[2])}-${Number(match[1])}` : value;
+  };
+  return parse(left) === parse(right);
+}
 function displayTime(value, use24Hour) {
   const match = /^(\d{1,2}):(\d{2})/.exec(value);
   if (!match) return value;
@@ -213,7 +275,7 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     this.year = today.getFullYear();
     this.month = today.getMonth() + 1;
     try {
-      const entries = await this.loadMonth(0);
+      const entries = await this.loadMonth();
       const todayEntry = entries.find((entry) => this.isToday(entry.gregorian));
       if (todayEntry) {
         this.currentHijriYear = todayEntry.hijriYear;
@@ -307,21 +369,149 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     if (this.mode === "hijri") return `${HIJRI_MONTHS[this.month - 1]} ${this.year} AH`;
     return `${GREGORIAN_MONTHS[this.month - 1]} ${this.year}`;
   }
-  /** Load/cache a single API calendar month; cap the in-memory cache to 12 results. */
-  async loadMonth(adjustment = this.settings.hijriOffset) {
+  /** Resolve the current location-day and Maghrib rollover exactly like the daily schedule. */
+  async getCurrentRolloverContext() {
+    var _a, _b, _c, _d, _e, _f, _g;
+    if (this.settings.hijriRollover !== "maghrib") return { locationDate: "", rollover: 0 };
+    const now = /* @__PURE__ */ new Date();
+    const deviceDate = `${now.getDate()}-${now.getMonth() + 1}-${now.getFullYear()}`;
+    const { latitude, longitude } = this.settings.coordinates || {};
+    if (latitude === void 0 || longitude === void 0) return { locationDate: deviceDate, rollover: 0 };
+    const makeUrl = (date) => {
+      const url = new URL(`https://api.aladhan.com/v1/timings/${date}`);
+      url.searchParams.set("latitude", String(latitude));
+      url.searchParams.set("longitude", String(longitude));
+      url.searchParams.set("method", String(this.settings.calculationMethod));
+      return url;
+    };
+    let payload;
+    try {
+      const response = await (0, import_obsidian.requestUrl)({
+        url: makeUrl(deviceDate).toString(),
+        method: "GET",
+        headers: { Accept: "application/json" }
+      });
+      if (response.status < 200 || response.status >= 300) return { locationDate: deviceDate, rollover: 0 };
+      payload = response.json;
+      if ((payload == null ? void 0 : payload.code) !== 200 || !((_a = payload == null ? void 0 : payload.data) == null ? void 0 : _a.timings)) return { locationDate: deviceDate, rollover: 0 };
+      const timeZone = ((_b = payload.data.meta) == null ? void 0 : _b.timezone) || ((_c = payload.data.meta) == null ? void 0 : _c.timezonestring);
+      const locationDate = dateAtLocation(now, timeZone);
+      if (locationDate !== deviceDate) {
+        const refetch = await (0, import_obsidian.requestUrl)({
+          url: makeUrl(locationDate).toString(),
+          method: "GET",
+          headers: { Accept: "application/json" }
+        });
+        if (refetch.status < 200 || refetch.status >= 300) return { locationDate, rollover: 0 };
+        payload = refetch.json;
+        if ((payload == null ? void 0 : payload.code) !== 200 || !((_d = payload == null ? void 0 : payload.data) == null ? void 0 : _d.timings)) return { locationDate, rollover: 0 };
+      }
+      const maghrib = payload.data.timings.Maghrib;
+      if (typeof maghrib !== "string") return { locationDate, rollover: 0 };
+      const base = maghrib.match(/^(\d{1,2}):(\d{2})/);
+      if (!base) return { locationDate, rollover: 0 };
+      const baseMinutes = Number(base[1]) * 60 + Number(base[2]);
+      const prayerOffset = ((_e = this.settings.prayerTimeOffsets) == null ? void 0 : _e.Maghrib) || 0;
+      const adjustedMaghrib = formatTime(baseMinutes + prayerOffset);
+      const nowMinutes = minutesAtLocation(now, ((_f = payload.data.meta) == null ? void 0 : _f.timezone) || ((_g = payload.data.meta) == null ? void 0 : _g.timezonestring) || void 0);
+      const rollover = hijriAdjustmentForNow(0, "maghrib", nowMinutes, adjustedMaghrib);
+      return { locationDate, rollover };
+    } catch (e) {
+      return { locationDate: deviceDate, rollover: 0 };
+    }
+  }
+  /** Apply the configured Hijri offset plus today's location-time rollover. */
+  effectiveHijriOffset(baseOffset, date, context, hijriTargetMode = false) {
+    if (!context.locationDate || !context.rollover) return baseOffset;
+    const entryDate = `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
+    const rolloverDate = hijriTargetMode ? shiftGregorianDate(context.locationDate, 1) : context.locationDate;
+    return sameCalendarDate(entryDate, rolloverDate) ? baseOffset + context.rollover : baseOffset;
+  }
+  /** Load a month and apply the configured Hijri offset without relying on API adjustment. */
+  async loadMonth() {
     if (!this.settings.coordinates) throw new Error("Set a location in plugin settings to view the calendar.");
-    const endpoint = this.mode === "hijri" ? "hijriCalendar" : "calendar";
-    const query = new URLSearchParams({
-      latitude: String(this.settings.coordinates.latitude),
-      longitude: String(this.settings.coordinates.longitude),
-      method: String(this.settings.calculationMethod),
-      adjustment: String(adjustment)
+    const offset = this.settings.hijriOffset || 0;
+    const rolloverContext = await this.getCurrentRolloverContext();
+    if (this.mode === "hijri") {
+      const targetEntries = await this.fetchCalendarMonth("hijriCalendar", this.year, this.month);
+      if (!offset && !rolloverContext.rollover) return targetEntries;
+      const shiftedMonths2 = /* @__PURE__ */ new Map();
+      const shiftedDates = targetEntries.map((target) => {
+        const effectiveOffset = this.effectiveHijriOffset(offset, target.gregorian, rolloverContext, true);
+        return {
+          target,
+          date: shiftGregorianDate(target.api.date.gregorian.date, -effectiveOffset)
+        };
+      });
+      const needed2 = /* @__PURE__ */ new Set();
+      for (const item of shiftedDates) {
+        const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(item.date);
+        if (match) needed2.add(`${Number(match[3])}-${Number(match[2])}`);
+      }
+      for (const key of needed2) {
+        const [year, month] = key.split("-").map(Number);
+        shiftedMonths2.set(key, await this.fetchCalendarMonth("calendar", year, month));
+      }
+      return shiftedDates.map(({ target, date }) => {
+        var _a;
+        const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(date);
+        if (!match) return target;
+        const key = `${Number(match[3])}-${Number(match[2])}`;
+        const shiftedEntry = (_a = shiftedMonths2.get(key)) == null ? void 0 : _a.find((candidate) => sameCalendarDate(candidate.api.date.gregorian.date, date));
+        if (!shiftedEntry) return target;
+        return {
+          ...shiftedEntry,
+          hijriDay: target.hijriDay,
+          hijriMonth: target.hijriMonth,
+          hijriYear: target.hijriYear
+        };
+      });
+    }
+    const baseEntries = await this.fetchCalendarMonth("calendar", this.year, this.month);
+    if (!offset && !rolloverContext.rollover) return baseEntries;
+    const shiftedMonths = /* @__PURE__ */ new Map();
+    const needed = /* @__PURE__ */ new Set();
+    for (const entry of baseEntries) {
+      const effectiveOffset = this.effectiveHijriOffset(offset, entry.gregorian, rolloverContext);
+      const shifted = shiftGregorianDate(entry.api.date.gregorian.date, effectiveOffset);
+      const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(shifted);
+      if (match) needed.add(`${Number(match[3])}-${Number(match[2])}`);
+    }
+    for (const key of needed) {
+      const [year, month] = key.split("-").map(Number);
+      shiftedMonths.set(key, await this.fetchCalendarMonth("calendar", year, month));
+    }
+    return baseEntries.map((entry) => {
+      var _a;
+      const effectiveOffset = this.effectiveHijriOffset(offset, entry.gregorian, rolloverContext);
+      const shifted = shiftGregorianDate(entry.api.date.gregorian.date, effectiveOffset);
+      const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(shifted);
+      if (!match) return entry;
+      const key = `${Number(match[3])}-${Number(match[2])}`;
+      const shiftedEntry = (_a = shiftedMonths.get(key)) == null ? void 0 : _a.find((candidate) => sameCalendarDate(candidate.api.date.gregorian.date, shifted));
+      if (!shiftedEntry) return entry;
+      return {
+        ...entry,
+        hijriDay: shiftedEntry.hijriDay,
+        hijriMonth: shiftedEntry.hijriMonth,
+        hijriYear: shiftedEntry.hijriYear
+      };
     });
-    const key = `${endpoint}/${this.year}/${this.month}?${query}`;
+  }
+  /** Fetch/cache one provider calendar month with no Hijri adjustment. */
+  async fetchCalendarMonth(endpoint, year, month) {
+    var _a, _b;
+    const query = new URLSearchParams({
+      latitude: String((_a = this.settings.coordinates) == null ? void 0 : _a.latitude),
+      longitude: String((_b = this.settings.coordinates) == null ? void 0 : _b.longitude),
+      method: String(this.settings.calculationMethod),
+      adjustment: "0"
+    });
+    const key = `${endpoint}/${year}/${month}?${query}`;
     const cached = responseCache.get(key);
     if (cached) return cached;
     const response = await (0, import_obsidian.requestUrl)({
-      url: `https://api.aladhan.com/v1/${endpoint}/${this.year}/${this.month}?${query}`,
+      url: `https://api.aladhan.com/v1/${endpoint}/${year}/${month}?${query}`,
       method: "GET",
       headers: { Accept: "application/json" }
     });
@@ -330,7 +520,7 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     if (payload.code !== 200 || !Array.isArray(payload.data)) throw new Error("The calendar service returned invalid data.");
     const entries = mapCalendarDates(payload.data);
     responseCache.set(key, entries);
-    if (responseCache.size > 12) responseCache.delete(responseCache.keys().next().value);
+    if (responseCache.size > 24) responseCache.delete(responseCache.keys().next().value);
     return entries;
   }
   /** Draw a Monday-first grid with independent fast/Jummah markers. */
@@ -341,7 +531,7 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     for (const entry of entries) {
       const cell = grid.createEl("button", {
         cls: "salah-calendar-day",
-        attr: { "aria-label": `${entry.api.date.gregorian.weekday.en}, ${entry.api.date.gregorian.date}; Hijri ${entry.api.date.hijri.date}` }
+        attr: { "aria-label": `${entry.api.date.gregorian.weekday.en}, ${entry.api.date.gregorian.date}; Hijri ${entry.hijriDay} ${HIJRI_MONTHS[entry.hijriMonth - 1]} ${entry.hijriYear}` }
       });
       cell.createSpan({ cls: "salah-calendar-gregorian", text: String(entry.gregorian.getDate()) });
       cell.createSpan({ cls: "salah-calendar-hijri", text: String(entry.hijriDay) });
@@ -362,6 +552,16 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     const today = /* @__PURE__ */ new Date();
     return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
   }
+  /** Apply the same per-prayer offsets used by the daily schedule to calendar details. */
+  adjustedPrayerTime(name, value) {
+    var _a;
+    const match = /^(\d{1,2}):(\d{2})(.*)$/.exec(value);
+    if (!match) return value;
+    const base = Number(match[1]) * 60 + Number(match[2]);
+    if (!Number.isInteger(base) || base < 0 || base >= 1440) return value;
+    const offset = ((_a = this.settings.prayerTimeOffsets) == null ? void 0 : _a[name]) || 0;
+    return formatTime(base + offset) + match[3];
+  }
   /** Show the selected day prayer times with the same label colors as the schedule modal. */
   renderDetails(entry, detail) {
     detail.empty();
@@ -370,14 +570,15 @@ var PrayerCalendarModal = class extends import_obsidian.Modal {
     for (const name of ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"]) {
       const time = entry.api.timings[name];
       if (!time) continue;
+      const adjusted = this.adjustedPrayerTime(name, time);
       const row2 = rows.createDiv({ cls: "salah-calendar-time-row" });
       row2.createSpan({ cls: `salah-prayer-${name.toLowerCase()}`, text: name });
-      row2.createSpan({ text: displayTime(time, this.settings.use24HourTime) });
+      row2.createSpan({ text: displayTime(adjusted, this.settings.use24HourTime) });
     }
     const maghrib = entry.api.timings.Maghrib;
     const fajr = entry.api.timings.Fajr;
     if (!maghrib || !fajr) return;
-    const lastThird = calculateLastThird(maghrib, fajr);
+    const lastThird = calculateLastThird(this.adjustedPrayerTime("Maghrib", maghrib), this.adjustedPrayerTime("Fajr", fajr));
     if (!lastThird) return;
     const row = rows.createDiv({ cls: "salah-calendar-time-row" });
     row.createSpan({ text: "Last Third" });
@@ -475,61 +676,6 @@ var LocationSearchModal = class extends import_obsidian3.SuggestModal {
 
 // src/prayer-times.ts
 var import_obsidian4 = require("obsidian");
-
-// src/hijri-date.ts
-function hijriAdjustmentForNow(configuredOffset, rollover, currentMinutes, maghribTime) {
-  if (rollover !== "maghrib") return configuredOffset;
-  const match = /^(\d{1,2}):(\d{2})/.exec(maghribTime);
-  if (!match) return configuredOffset;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return configuredOffset;
-  const maghribMinutes = hour * 60 + minute;
-  return currentMinutes >= maghribMinutes ? configuredOffset + 1 : configuredOffset;
-}
-function minutesAtLocation(date, timeZone) {
-  var _a, _b;
-  if (timeZone) {
-    try {
-      const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
-      const hour = Number((_a = parts.find((part) => part.type === "hour")) == null ? void 0 : _a.value);
-      const minute = Number((_b = parts.find((part) => part.type === "minute")) == null ? void 0 : _b.value);
-      if (Number.isInteger(hour) && hour >= 0 && hour < 24 && Number.isInteger(minute) && minute >= 0 && minute < 60) return hour * 60 + minute;
-    } catch (e) {
-    }
-  }
-  return date.getHours() * 60 + date.getMinutes();
-}
-function dateAtLocation(date, timeZone) {
-  if (timeZone) {
-    try {
-      const parts = new Intl.DateTimeFormat("en-GB", { timeZone, day: "2-digit", month: "2-digit", year: "numeric" }).formatToParts(date);
-      const get = (type) => {
-        var _a;
-        return (_a = parts.find((part) => part.type === type)) == null ? void 0 : _a.value;
-      };
-      const day = get("day");
-      const month = get("month");
-      const year = get("year");
-      if (day && month && year) return `${Number(day)}-${Number(month)}-${year}`;
-    } catch (e) {
-    }
-  }
-  return `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-}
-function shiftGregorianDate(value, offset) {
-  const match = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(value);
-  if (!match || !Number.isInteger(offset)) throw new Error("Invalid Gregorian date adjustment.");
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
-  const source = new Date(Date.UTC(year, month - 1, day));
-  if (source.getUTCFullYear() !== year || source.getUTCMonth() !== month - 1 || source.getUTCDate() !== day) {
-    throw new Error("Invalid Gregorian date adjustment.");
-  }
-  const date = new Date(Date.UTC(year, month - 1, day + offset));
-  return `${date.getUTCDate()}-${date.getUTCMonth() + 1}-${date.getUTCFullYear()}`;
-}
 
 // src/schedule-events.ts
 function buildConfiguredEvents(schedule, settings) {
@@ -663,6 +809,26 @@ function renderStatusTemplate(container, template, next, schedule, countdownColo
   container.replaceChildren(fragment);
 }
 
+// src/time-wheel.ts
+var TIME_WHEEL_VISIBLE_ROWS = 5;
+var TIME_WHEEL_SPACER_ROWS = 2;
+var TIME_WHEEL_ROW_HEIGHT = 38;
+function timeWheelScrollTop(index, rowHeight = TIME_WHEEL_ROW_HEIGHT) {
+  const spacerHeight = TIME_WHEEL_SPACER_ROWS * rowHeight;
+  const viewportHeight = TIME_WHEEL_VISIBLE_ROWS * rowHeight;
+  const centreOffset = spacerHeight + index * rowHeight + rowHeight / 2 - viewportHeight / 2;
+  return Math.round(centreOffset);
+}
+function timeWheelIndexFromScroll(scrollTop, rowHeight = TIME_WHEEL_ROW_HEIGHT, itemCount = Number.POSITIVE_INFINITY) {
+  const raw = Math.round(scrollTop / rowHeight);
+  if (!Number.isFinite(itemCount) || itemCount < 1) return Math.max(0, raw);
+  return Math.max(0, Math.min(itemCount - 1, raw));
+}
+function clampTimeWheelIndex(index, itemCount) {
+  if (!Number.isFinite(itemCount) || itemCount < 1) return 0;
+  return Math.max(0, Math.min(itemCount - 1, Math.trunc(index)));
+}
+
 // main.ts
 var DEFAULTS = {
   coordinates: null,
@@ -765,6 +931,10 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     this.statusBar = this.addStatusBarItem();
     this.statusBar.addClass("salah-hijri-status");
     this.statusBar.onClickEvent(() => this.openSchedule());
+    this.registerDomEvent(this.statusBar, "contextmenu", (event) => {
+      event.preventDefault();
+      this.openStatusBarMenu(event);
+    });
     this.applyStatusBarVisibility();
     this.addSettingTab(new SalahSettingsTab(this.app, this));
     this.addCommand({ id: "set-manual-location", name: "Set manual location", callback: () => this.openLocationPicker() });
@@ -990,6 +1160,27 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     renderStatusTemplate(this.statusBar, template, next, this.schedule, color, this.settings.use24HourTime);
     this.statusBar.title = scheduleLines(this.schedule, events, this.settings.use24HourTime).join("\n");
   }
+  /**
+   * Show actions for the status-bar countdown.
+   *
+   * Every item delegates to a registered command ID (`<plugin-id>:<command-id>`)
+   * instead of calling a modal directly. That is intentional: user-defined
+   * hotkeys and the command palette already target those IDs, so the menu stays
+   * consistent and new commands automatically have one canonical entry point.
+   */
+  openStatusBarMenu(event) {
+    const menu = new import_obsidian5.Menu();
+    const runCommand = (commandId) => {
+      const fullId = this.manifest.id + ":" + commandId;
+      if (!this.app.commands.executeCommandById(fullId)) {
+        new import_obsidian5.Notice("Command unavailable: " + fullId, 1e4);
+      }
+    };
+    menu.addItem((item) => item.setTitle("Update Iqama times").setIcon("clock").onClick(() => runCommand("edit-iqama-times")));
+    menu.addItem((item) => item.setTitle("View calendar").setIcon("calendar-days").onClick(() => runCommand("open-prayer-calendar")));
+    menu.addItem((item) => item.setTitle("Display prayer times").setIcon("list").onClick(() => runCommand("display-prayer-times")));
+    menu.showAtMouseEvent(event);
+  }
   openSchedule() {
     if (!this.schedule) {
       new import_obsidian5.Notice("Prayer schedule unavailable. Set a location in plugin settings.", 1e4);
@@ -1201,6 +1392,9 @@ var TimePickerModal = class extends import_obsidian5.Modal {
     let minute = initial % 60;
     let is12Hour = false;
     const picker = this.contentEl.createDiv({ cls: "salah-wheel-picker" });
+    picker.style.setProperty("--salah-time-row-height", TIME_WHEEL_ROW_HEIGHT + "px");
+    picker.style.setProperty("--salah-time-visible-rows", String(TIME_WHEEL_VISIBLE_ROWS));
+    picker.style.setProperty("--salah-time-spacer-rows", String(TIME_WHEEL_SPACER_ROWS));
     const wheels = picker.createDiv({ cls: "salah-time-wheels" });
     const hours = wheels.createDiv({ cls: "salah-time-wheel", attr: { "aria-label": "Hour", tabindex: "0" } });
     wheels.createSpan({ cls: "salah-time-separator", text: ":" });
@@ -1208,48 +1402,33 @@ var TimePickerModal = class extends import_obsidian5.Modal {
     const period = picker.createEl("button", { cls: "salah-time-period" });
     const format = this.contentEl.createEl("button", { cls: "salah-time-format", text: "24-hour" });
     let hourNodes = [];
-    let minuteNodes = [];
+    const itemsIn = (element) => Array.from(element.querySelectorAll(".salah-time-wheel-item"));
     const updateSelection = (list, selected) => list.forEach((item, index) => item.toggleClass("is-selected", index === selected));
     const nearestIndex = (element) => {
-      const items = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
-      if (items.length === 0) return 0;
-      const viewport = element.getBoundingClientRect();
-      const center = viewport.top + element.clientHeight / 2;
-      let best = 0;
-      let distance = Infinity;
-      items.forEach((item, index) => {
-        const rect = item.getBoundingClientRect();
-        const offset = Math.abs(rect.top + rect.height / 2 - center);
-        if (offset < distance) {
-          distance = offset;
-          best = index;
-        }
-      });
-      return best;
+      const count = itemsIn(element).length;
+      return timeWheelIndexFromScroll(element.scrollTop, TIME_WHEEL_ROW_HEIGHT, count);
     };
-    const scrollTo = (element, index) => {
-      const items = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
-      const item = items[index];
-      if (!item) return;
-      const viewport = element.getBoundingClientRect();
-      const center = viewport.top + element.clientHeight / 2;
-      const rect = item.getBoundingClientRect();
-      element.scrollTop += rect.top + rect.height / 2 - center;
+    const alignWheel = (element, index) => {
+      const items = itemsIn(element);
+      if (items.length === 0) return 0;
+      const bounded = clampTimeWheelIndex(index, items.length);
+      const target = timeWheelScrollTop(bounded, TIME_WHEEL_ROW_HEIGHT);
+      if (Math.abs(element.scrollTop - target) > 0.5) element.scrollTop = target;
+      updateSelection(items, bounded);
+      return bounded;
     };
     const hourIndex = () => is12Hour ? (hour24 % 12 || 12) - 1 : hour24;
+    const syncPeriod = () => {
+      period.textContent = hour24 >= 12 ? "PM" : "AM";
+      period.toggleClass("salah-time-period-hidden", !is12Hour);
+    };
     const selectHour = (index) => {
-      const nodes = Array.from(hours.querySelectorAll(".salah-time-wheel-item"));
-      const bounded = Math.max(0, Math.min(nodes.length - 1, index));
-      scrollTo(hours, bounded);
-      updateSelection(nodes, bounded);
+      const bounded = alignWheel(hours, index);
       hour24 = is12Hour ? (bounded + 1) % 12 + (hour24 >= 12 ? 12 : 0) : bounded;
       syncPeriod();
     };
     const selectMinute = (index) => {
-      const bounded = Math.max(0, Math.min(minuteNodes.length - 1, index));
-      scrollTo(minutes, bounded);
-      updateSelection(minuteNodes, bounded);
-      minute = bounded;
+      minute = alignWheel(minutes, index);
     };
     const addWheelSpacers = (wheel) => {
       wheel.createDiv({ cls: "salah-time-wheel-spacer" });
@@ -1266,25 +1445,24 @@ var TimePickerModal = class extends import_obsidian5.Modal {
         hourNodes.push(option);
       }
       addWheelSpacers(hours);
-      scrollTo(hours, hourIndex());
       updateSelection(hourNodes, hourIndex());
+      alignWheel(hours, hourIndex());
     };
-    minuteNodes = [];
     addWheelSpacers(minutes);
     for (let i = 0; i < 60; i++) {
       const option = minutes.createDiv({ cls: "salah-time-wheel-item", text: String(i).padStart(2, "0") });
       option.addEventListener("click", () => selectMinute(i));
-      minuteNodes.push(option);
     }
     addWheelSpacers(minutes);
-    scrollTo(minutes, minute);
-    const syncPeriod = () => {
-      period.textContent = hour24 >= 12 ? "PM" : "AM";
-      period.toggleClass("salah-time-period-hidden", !is12Hour);
-    };
     const bindWheel = (element, onIndex) => {
       let frame = 0;
+      let settleTimer = 0;
       let wheelRemainder = 0;
+      const applyIndex = (index) => {
+        const bounded = alignWheel(element, index);
+        onIndex(bounded);
+        syncPeriod();
+      };
       element.addEventListener("wheel", (event) => {
         event.preventDefault();
         const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1);
@@ -1292,35 +1470,28 @@ var TimePickerModal = class extends import_obsidian5.Modal {
         if (Math.abs(wheelRemainder) < 40) return;
         const direction = wheelRemainder > 0 ? 1 : -1;
         wheelRemainder = Math.max(-39, Math.min(39, wheelRemainder - direction * 40));
-        const nodes = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
+        const items = itemsIn(element);
         const currentIndex = nearestIndex(element);
-        const index = Math.max(0, Math.min(nodes.length - 1, currentIndex + direction));
-        if (index === 0 && direction < 0 || index === nodes.length - 1 && direction > 0) wheelRemainder = 0;
-        scrollTo(element, index);
-        updateSelection(nodes, index);
-        onIndex(index);
-        syncPeriod();
+        const index = clampTimeWheelIndex(currentIndex + direction, items.length);
+        if (index === 0 && direction < 0 || index === items.length - 1 && direction > 0) wheelRemainder = 0;
+        applyIndex(index);
       }, { passive: false });
       element.addEventListener("scroll", () => {
         window.cancelAnimationFrame(frame);
         frame = window.requestAnimationFrame(() => {
-          const nodes = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
           const index = nearestIndex(element);
-          updateSelection(nodes, index);
+          updateSelection(itemsIn(element), index);
           onIndex(index);
           syncPeriod();
         });
+        window.clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(() => applyIndex(nearestIndex(element)), 90);
       }, { passive: true });
       element.addEventListener("keydown", (event) => {
         if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
         event.preventDefault();
-        const nodes = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        const index = Math.max(0, Math.min(nodes.length - 1, nearestIndex(element) + direction));
-        scrollTo(element, index);
-        updateSelection(nodes, index);
-        onIndex(index);
-        syncPeriod();
+        applyIndex(nearestIndex(element) + direction);
       });
     };
     bindWheel(hours, (index) => {
@@ -1338,9 +1509,20 @@ var TimePickerModal = class extends import_obsidian5.Modal {
       format.textContent = is12Hour ? "12-hour" : "24-hour";
       renderHours();
       syncPeriod();
+      window.requestAnimationFrame(() => alignWheel(hours, hourIndex()));
     });
     renderHours();
     syncPeriod();
+    let revealed = false;
+    const revealWheels = () => {
+      if (revealed) return;
+      revealed = true;
+      alignWheel(hours, hourIndex());
+      alignWheel(minutes, minute);
+      picker.addClass("is-ready");
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(revealWheels));
+    window.setTimeout(revealWheels, 120);
     new import_obsidian5.Setting(this.contentEl).addButton((button) => button.setButtonText("Use time").setCta().onClick(() => {
       this.onChoose(String(hour24).padStart(2, "0") + ":" + String(minute).padStart(2, "0"));
       this.close();
@@ -1352,6 +1534,7 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
     super(app, plugin);
     this.plugin = plugin;
   }
+  /** Re-render the tab but restore the vertical tab's scroll offset on the next frame. */
   refreshAtCurrentScroll() {
     var _a;
     const pane = this.containerEl.closest(".vertical-tab-content");
@@ -1487,6 +1670,7 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
       void this.plugin.persistSettings();
     }).open();
   }
+  /** Validate a minute setting before persisting it; invalid input leaves the old value. */
   updateMinutes(value, key, min = 0, max = 1439) {
     const minutes = Number(value);
     if (!Number.isInteger(minutes) || minutes < min || minutes > max) return;
@@ -1500,6 +1684,7 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
       void this.plugin.persistSettings();
     }));
   }
+  /** Build custom daily-time rows; the picker writes back into the in-progress add form. */
   addCustomTimes(container) {
     new import_obsidian5.Setting(container).setName("Custom daily times").setHeading();
     container.createEl("p", { text: "Add daily reminders or custom events (24-hour HH:mm)." });

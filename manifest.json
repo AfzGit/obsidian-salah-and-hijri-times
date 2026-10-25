@@ -1,7 +1,7 @@
 {
   "id": "salah-hijri-times",
   "name": "Salah and Hijri Times",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.5.0",
   "description": "Track daily prayer times, Iqama, and the Hijri date.",
   "author": "AfzGit",

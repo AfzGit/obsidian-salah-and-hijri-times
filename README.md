@@ -15,6 +15,7 @@ Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-ti
 # Features
 
 - Show the next prayer, Iqama, or custom event and its live countdown in the status bar.
+- Right-click the status bar countdown for quick actions: update Iqama times, view the calendar, or display today's prayer times.
 - Open a prayer schedule with prayer and Iqama times, Hijri date, and location.
 - Browse a calendar by Hijri month or Gregorian month, with highlighted days for Fasting and Jummah. Select a day to see its prayer times.
 - Configure prayer calculations, Hijri offset and rollover, Iqama rules, custom daily times, countdown colors, and notifications.
@@ -29,6 +30,8 @@ Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-ti
 - **Display prayer times**: open today's schedule.
 - **Open prayer calendar**: browse Hijri- or Gregorian-month calendar views and view a selected day's prayer times.
 - **Toggle status bar visibility**: show or hide the status bar item.
+
+Right-clicking the status bar countdown opens a menu with **Update Iqama times**, **View calendar**, and **Display prayer times**. The menu executes the commands above rather than duplicating their logic.
 
 # Location
 
@@ -54,7 +57,7 @@ Available tokens:
 
 An Obsidian notice can appear when a prayer, enabled Iqama, or custom event is reached. Notices stay visible for 10 seconds. Optional sound is generated locally. Set separate advance reminders for prayer/custom events and Iqama; each event's reached-time and advance notices can be enabled or disabled individually.
 
-Custom daily times and fixed Iqama entries accept 24-hour `HH:mm` values or the adjacent time picker. The picker supports 12- and 24-hour display.
+Custom daily times and fixed Iqama entries accept 24-hour `HH:mm` values or the adjacent time picker. The picker supports 12- and 24-hour display and always rests on one of five aligned rows (two above, the selected row, two below); the selected hour/minute is centred exactly, including after trackpad, touch, wheel, or keyboard input.
 
 # Prayer and Hijri calculations
 
@@ -66,7 +69,7 @@ Sunset is represented by Maghrib in the prayer schedule; there is no separate Su
 
 Run **npm test** to execute the unit test suite. Run **npm run build** to type-check the full TypeScript project and create the main.js bundle.
 
-The tests cover clock math, rollover and location timezones, Gregorian date shifting, calendar month lengths and boundaries, fasting markers, Iqama rules, custom times, and coordinates.
+The tests cover clock math, rollover and location timezones, Gregorian date shifting, calendar month lengths and boundaries, fasting markers, Iqama rules, custom times, time-picker row geometry, and coordinates.
 
 # Data and privacy
 
@@ -95,6 +98,7 @@ This plugin is distributed under the MIT License. See [LICENSE](LICENSE).
 - `src/status-template.ts`: status bar token rendering.
 - `src/calculation-methods.ts`: labeled AlAdhan method IDs.
 - `src/time.ts`: clock math and countdown.
+- `src/time-wheel.ts`: time-picker row geometry and alignment helpers.
 - `src/types.ts`: shared data types.
 - `tests/plugin.test.ts`: Node test-runner coverage for platform-independent business logic.
 - `docs/architecture.md`: lifecycle, data flow, cross-platform choices, and release notes.

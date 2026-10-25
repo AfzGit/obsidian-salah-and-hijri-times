@@ -1,4 +1,23 @@
 // @ts-nocheck -- entry recovered from the last complete bundle; runtime logic remains in src modules.
+/**
+ * Obsidian entry point for Salah and Hijri Times.
+ *
+ * Peculiarities worth knowing before editing:
+ * - This file was recovered from the last complete compiled bundle rather than
+ *   written from scratch as TypeScript. It therefore keeps the bundle-style
+ *   `var X = class extends ...` declarations, the generated `import_obsidian5`
+ *   namespace alias, and `@ts-nocheck`. Treat `src/*` as the home for portable,
+ *   typed logic; keep only Obsidian/UI wiring here.
+ * - `DEFAULTS` is merged shallowly with saved data. Nested objects (Iqama rules,
+ *   prayer offsets, notification rules) are merged explicitly in `onload()`.
+ *   Any new nested setting must be given the same treatment.
+ * - The status-bar context menu and the command palette share command IDs, so
+ *   menu actions must never call a UI method directly. Add a command first and
+ *   then delegate to it, keeping shortcuts, menus, and the palette in sync.
+ * - The time picker's row geometry lives in `src/time-wheel.ts` and is mirrored
+ *   by CSS variables in `styles.css`. Keep both sides in sync; otherwise the
+ *   wheel can rest between rows.
+ */
 import * as import_obsidian5 from "obsidian";
 import { CALCULATION_METHODS } from "./src/calculation-methods";
 import { PrayerCalendarModal } from "./src/calendar";
@@ -7,7 +26,16 @@ import { LocationSearchModal } from "./src/location-picker";
 import { addIqama as buildConfiguredEvents, loadSchedule } from "./src/prayer-times";
 import { renderStatusTemplate } from "./src/status-template";
 import { clock, countdown, formatTime, nextEvent, parseTime } from "./src/time";
+import { clampTimeWheelIndex, TIME_WHEEL_ROW_HEIGHT, TIME_WHEEL_SPACER_ROWS, TIME_WHEEL_VISIBLE_ROWS, timeWheelIndexFromScroll, timeWheelScrollTop } from "./src/time-wheel";
 import type { Coordinates, IqamaRule, Schedule, Settings } from "./src/types";
+/**
+ * Persisted settings defaults.
+ *
+ * NOTE: `loadData()` results are merged into this object shallowly, so every
+ * nested object listed here is also merged field-by-field in `onload()`.
+ * Adding a new nested setting requires touching both places; otherwise saved
+ * data can end up with a partially populated object.
+ */
 var DEFAULTS = {
   coordinates: null,
   locationName: "",
@@ -44,6 +72,14 @@ var DEFAULTS = {
     Tahajjud: { mode: "disabled" }
   }
 };
+/**
+ * Display and persisted-name helpers.
+ *
+ * "Tahajjud" is the plugin's internal name for the Last Third window and
+ * "Sunrise" doubles as the Duha prayer. Those aliases are used in every place
+ * that shows a name to the user; keep them here so the status bar, schedule,
+ * notifications, and Iqama editor never drift apart.
+ */
 function prayerDisplayName(prayer) {
   return prayer === "Tahajjud" ? "Last Third" : prayer;
 }
@@ -60,6 +96,15 @@ function addIqamaRuleOptions(dropdown, prayer) {
   }
   return dropdown;
 }
+/**
+ * Iqama dropdown conversion helpers.
+ *
+ * The dropdown uses UI-only pseudo-values ("offset-last-third", "offset-fajr")
+ * because a persisted `IqamaRule` only stores `{ mode: "offset", from?: ... }`.
+ * Never write a pseudo-value to settings: `iqamaRuleSelection` converts persisted
+ * rules to dropdown IDs and `iqamaRuleForSelection` converts them back. The
+ * existing minute value/`from` base is preserved when switching offset target.
+ */
 function iqamaRuleSelection(prayer, rule) {
   if (rule.mode !== "offset") return rule.mode;
   if (prayer === "Tahajjud") return rule.from === "Fajr" ? "offset-fajr" : "offset-last-third";
@@ -72,6 +117,7 @@ function iqamaRuleForSelection(prayer, selection, current) {
   if (selection === "offset") return { mode: "offset", minutes: current.mode === "offset" ? current.minutes : 0 };
   return { mode: "disabled" };
 }
+/** Render a schedule row for the status-bar tooltip and schedule modal. */
 function displayClock(time, use24Hour) {
   const minutes = parseTime(time);
   return use24Hour && minutes !== null ? formatTime(minutes) : clock(time);
@@ -85,6 +131,19 @@ function scheduleLines(schedule, events, use24Hour) {
   rows.push("", "Hijri: " + schedule.hijriDate, "Location: " + schedule.locationName);
   return rows;
 }
+/**
+ * Main plugin controller.
+ *
+ * Lifecycle notes:
+ * - `onload()` only registers commands/UI; network work is deferred until
+ *   `workspace.onLayoutReady()`.
+ * - Countdown rendering is aligned to wall-clock minute boundaries by `tick()`,
+ *   while schedule refreshes use a separate interval that is re-armed after each
+ *   successful fetch. Do not merge the two timers: notifications must fire on
+ *   the minute even when a refresh fails.
+ * - `refreshSchedule()` uses a monotonic sequence number so a slow older request
+ *   cannot overwrite a newer user-triggered result.
+ */
 var SalahPlugin = class extends import_obsidian5.Plugin {
   constructor() {
     super(...arguments);
@@ -109,6 +168,13 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     this.statusBar = this.addStatusBarItem();
     this.statusBar.addClass("salah-hijri-status");
     this.statusBar.onClickEvent(() => this.openSchedule());
+    // Right-click exposes the same actions as the command palette. Using the
+    // command registry (rather than calling methods) keeps hotkeys, menus, and
+    // the palette on one code path.
+    this.registerDomEvent(this.statusBar, "contextmenu", (event) => {
+      event.preventDefault();
+      this.openStatusBarMenu(event);
+    });
     this.applyStatusBarVisibility();
     this.addSettingTab(new SalahSettingsTab(this.app, this));
     this.addCommand({ id: "set-manual-location", name: "Set manual location", callback: () => this.openLocationPicker() });
@@ -334,6 +400,27 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     renderStatusTemplate(this.statusBar, template, next, this.schedule, color, this.settings.use24HourTime);
     this.statusBar.title = scheduleLines(this.schedule, events, this.settings.use24HourTime).join("\n");
   }
+  /**
+   * Show actions for the status-bar countdown.
+   *
+   * Every item delegates to a registered command ID (`<plugin-id>:<command-id>`)
+   * instead of calling a modal directly. That is intentional: user-defined
+   * hotkeys and the command palette already target those IDs, so the menu stays
+   * consistent and new commands automatically have one canonical entry point.
+   */
+  openStatusBarMenu(event) {
+    const menu = new import_obsidian5.Menu();
+    const runCommand = (commandId) => {
+      const fullId = this.manifest.id + ":" + commandId;
+      if (!this.app.commands.executeCommandById(fullId)) {
+        new import_obsidian5.Notice("Command unavailable: " + fullId, 1e4);
+      }
+    };
+    menu.addItem((item) => item.setTitle("Update Iqama times").setIcon("clock").onClick(() => runCommand("edit-iqama-times")));
+    menu.addItem((item) => item.setTitle("View calendar").setIcon("calendar-days").onClick(() => runCommand("open-prayer-calendar")));
+    menu.addItem((item) => item.setTitle("Display prayer times").setIcon("list").onClick(() => runCommand("display-prayer-times")));
+    menu.showAtMouseEvent(event);
+  }
   openSchedule() {
     if (!this.schedule) {
       new import_obsidian5.Notice("Prayer schedule unavailable. Set a location in plugin settings.", 1e4);
@@ -343,6 +430,10 @@ var SalahPlugin = class extends import_obsidian5.Plugin {
     new ScheduleModal(this.app, this.schedule, events, this.settings.use24HourTime).open();
   }
 };
+/**
+ * Daily schedule modal opened by left-clicking the status bar or by the
+ * "Display prayer times" command/menu item.
+ */
 var ScheduleModal = class extends import_obsidian5.Modal {
   constructor(app, schedule, events, use24Hour) {
     super(app);
@@ -372,6 +463,11 @@ var ScheduleModal = class extends import_obsidian5.Modal {
     meta.createEl("div", { text: "Location: " + this.schedule.locationName });
   }
 };
+/**
+ * Small numeric editor for the Hijri day offset. Validation lives here rather
+ * than in the setting field so the command and settings tab share the same
+ * -30..30 whole-day rule.
+ */
 var HijriOffsetModal = class extends import_obsidian5.Modal {
   constructor(app, currentOffset, onSave) {
     super(app);
@@ -401,6 +497,13 @@ var HijriOffsetModal = class extends import_obsidian5.Modal {
     })).addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()));
   }
 };
+/**
+ * Editor for all Iqama rules.
+ *
+ * Each dropdown change triggers a full `renderRows()` because the selected mode
+ * decides which extra controls exist (file-time picker vs. offset steppers).
+ * `updated` is a working copy; nothing is persisted until "Save all".
+ */
 var IqamaEditorModal = class extends import_obsidian5.Modal {
   constructor(app, rules, onSave) {
     super(app);
@@ -471,6 +574,13 @@ function configuredFallbackEvents(settings) {
   events.push(...settings.customTimes.map((time) => ({ name: time.name, time: time.time, kind: "custom" })));
   return events;
 }
+/**
+ * Per-event notification matrix.
+ *
+ * Preferences are keyed by `kind|name` (see `eventNotificationKey`) rather than
+ * by time, so changing a prayer/Iqama time keeps the user's toggles. Missing
+ * keys default to both notices enabled.
+ */
 var EventNotificationModal = class extends import_obsidian5.Modal {
   constructor(app, events, current, onSave) {
     super(app);
@@ -529,6 +639,26 @@ var EventNotificationModal = class extends import_obsidian5.Modal {
     return input;
   }
 };
+/**
+ * Time chooser used by fixed Iqama and custom-time fields.
+ *
+ * Peculiarities:
+ * - Each wheel is a native scroll container with exactly five visible rows
+ *   (up2, up1, middle, down1, down2) and two spacer rows above/below. The
+ *   resting scroll offset is therefore always `index * rowHeight`; see
+ *   `src/time-wheel.ts` for the derivation and tests.
+ * - Alignment never measures DOM rectangles. Rect-based centring is sensitive
+ *   to modal layout timing, zoom, and sub-pixel scroll positions, which is what
+ *   previously left the wheel half a row off when the modal first opened.
+ *   Instead the picker waits for layout, assigns an exact `scrollTop`, and
+ *   reveals the wheels only afterwards.
+ * - CSS `scroll-snap-type` plus a short debounce ("settle") keeps trackpad and
+ *   touch scrolling snapped to a row. Mouse-wheel steps are intercepted and
+ *   moved by exactly one row, so they never produce an in-between position.
+ * - The row height/count are mirrored by CSS variables set on `.salah-wheel-picker`.
+ *   If they change, update `src/time-wheel.ts`, its unit tests, and the CSS
+ *   fallbacks in `styles.css` together.
+ */
 var TimePickerModal = class extends import_obsidian5.Modal {
   constructor(app, initial, onChoose) {
     super(app);
@@ -545,6 +675,9 @@ var TimePickerModal = class extends import_obsidian5.Modal {
     let minute = initial % 60;
     let is12Hour = false;
     const picker = this.contentEl.createDiv({ cls: "salah-wheel-picker" });
+    picker.style.setProperty("--salah-time-row-height", TIME_WHEEL_ROW_HEIGHT + "px");
+    picker.style.setProperty("--salah-time-visible-rows", String(TIME_WHEEL_VISIBLE_ROWS));
+    picker.style.setProperty("--salah-time-spacer-rows", String(TIME_WHEEL_SPACER_ROWS));
     const wheels = picker.createDiv({ cls: "salah-time-wheels" });
     const hours = wheels.createDiv({ cls: "salah-time-wheel", attr: { "aria-label": "Hour", tabindex: "0" } });
     wheels.createSpan({ cls: "salah-time-separator", text: ":" });
@@ -552,48 +685,34 @@ var TimePickerModal = class extends import_obsidian5.Modal {
     const period = picker.createEl("button", { cls: "salah-time-period" });
     const format = this.contentEl.createEl("button", { cls: "salah-time-format", text: "24-hour" });
     let hourNodes = [];
-    let minuteNodes = [];
+    const itemsIn = (element) => Array.from(element.querySelectorAll(".salah-time-wheel-item"));
     const updateSelection = (list, selected) => list.forEach((item, index) => item.toggleClass("is-selected", index === selected));
     const nearestIndex = (element) => {
-      const items = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
-      if (items.length === 0) return 0;
-      const viewport = element.getBoundingClientRect();
-      const center = viewport.top + element.clientHeight / 2;
-      let best = 0;
-      let distance = Infinity;
-      items.forEach((item, index) => {
-        const rect = item.getBoundingClientRect();
-        const offset = Math.abs(rect.top + rect.height / 2 - center);
-        if (offset < distance) {
-          distance = offset;
-          best = index;
-        }
-      });
-      return best;
+      const count = itemsIn(element).length;
+      return timeWheelIndexFromScroll(element.scrollTop, TIME_WHEEL_ROW_HEIGHT, count);
     };
-    const scrollTo = (element, index) => {
-      const items = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
-      const item = items[index];
-      if (!item) return;
-      const viewport = element.getBoundingClientRect();
-      const center = viewport.top + element.clientHeight / 2;
-      const rect = item.getBoundingClientRect();
-      element.scrollTop += rect.top + rect.height / 2 - center;
+    /** Snap to one row and mark it selected. Returns the clamped index. */
+    const alignWheel = (element, index) => {
+      const items = itemsIn(element);
+      if (items.length === 0) return 0;
+      const bounded = clampTimeWheelIndex(index, items.length);
+      const target = timeWheelScrollTop(bounded, TIME_WHEEL_ROW_HEIGHT);
+      if (Math.abs(element.scrollTop - target) > 0.5) element.scrollTop = target;
+      updateSelection(items, bounded);
+      return bounded;
     };
     const hourIndex = () => is12Hour ? (hour24 % 12 || 12) - 1 : hour24;
+    const syncPeriod = () => {
+      period.textContent = hour24 >= 12 ? "PM" : "AM";
+      period.toggleClass("salah-time-period-hidden", !is12Hour);
+    };
     const selectHour = (index) => {
-      const nodes = Array.from(hours.querySelectorAll(".salah-time-wheel-item"));
-      const bounded = Math.max(0, Math.min(nodes.length - 1, index));
-      scrollTo(hours, bounded);
-      updateSelection(nodes, bounded);
+      const bounded = alignWheel(hours, index);
       hour24 = is12Hour ? (bounded + 1) % 12 + (hour24 >= 12 ? 12 : 0) : bounded;
       syncPeriod();
     };
     const selectMinute = (index) => {
-      const bounded = Math.max(0, Math.min(minuteNodes.length - 1, index));
-      scrollTo(minutes, bounded);
-      updateSelection(minuteNodes, bounded);
-      minute = bounded;
+      minute = alignWheel(minutes, index);
     };
     const addWheelSpacers = (wheel) => {
       wheel.createDiv({ cls: "salah-time-wheel-spacer" });
@@ -610,25 +729,24 @@ var TimePickerModal = class extends import_obsidian5.Modal {
         hourNodes.push(option);
       }
       addWheelSpacers(hours);
-      scrollTo(hours, hourIndex());
       updateSelection(hourNodes, hourIndex());
+      alignWheel(hours, hourIndex());
     };
-    minuteNodes = [];
     addWheelSpacers(minutes);
     for (let i = 0; i < 60; i++) {
       const option = minutes.createDiv({ cls: "salah-time-wheel-item", text: String(i).padStart(2, "0") });
       option.addEventListener("click", () => selectMinute(i));
-      minuteNodes.push(option);
     }
     addWheelSpacers(minutes);
-    scrollTo(minutes, minute);
-    const syncPeriod = () => {
-      period.textContent = hour24 >= 12 ? "PM" : "AM";
-      period.toggleClass("salah-time-period-hidden", !is12Hour);
-    };
     const bindWheel = (element, onIndex) => {
       let frame = 0;
+      let settleTimer = 0;
       let wheelRemainder = 0;
+      const applyIndex = (index) => {
+        const bounded = alignWheel(element, index);
+        onIndex(bounded);
+        syncPeriod();
+      };
       element.addEventListener("wheel", (event) => {
         event.preventDefault();
         const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1);
@@ -636,35 +754,30 @@ var TimePickerModal = class extends import_obsidian5.Modal {
         if (Math.abs(wheelRemainder) < 40) return;
         const direction = wheelRemainder > 0 ? 1 : -1;
         wheelRemainder = Math.max(-39, Math.min(39, wheelRemainder - direction * 40));
-        const nodes = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
+        const items = itemsIn(element);
         const currentIndex = nearestIndex(element);
-        const index = Math.max(0, Math.min(nodes.length - 1, currentIndex + direction));
-        if (index === 0 && direction < 0 || index === nodes.length - 1 && direction > 0) wheelRemainder = 0;
-        scrollTo(element, index);
-        updateSelection(nodes, index);
-        onIndex(index);
-        syncPeriod();
+        const index = clampTimeWheelIndex(currentIndex + direction, items.length);
+        if (index === 0 && direction < 0 || index === items.length - 1 && direction > 0) wheelRemainder = 0;
+        applyIndex(index);
       }, { passive: false });
+      // Native scrolling (trackpad/touch/keyboard scroll) can stop between rows.
+      // Preview the nearest selection while it moves, then snap after it settles.
       element.addEventListener("scroll", () => {
         window.cancelAnimationFrame(frame);
         frame = window.requestAnimationFrame(() => {
-          const nodes = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
           const index = nearestIndex(element);
-          updateSelection(nodes, index);
+          updateSelection(itemsIn(element), index);
           onIndex(index);
           syncPeriod();
         });
+        window.clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(() => applyIndex(nearestIndex(element)), 90);
       }, { passive: true });
       element.addEventListener("keydown", (event) => {
         if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
         event.preventDefault();
-        const nodes = Array.from(element.querySelectorAll(".salah-time-wheel-item"));
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        const index = Math.max(0, Math.min(nodes.length - 1, nearestIndex(element) + direction));
-        scrollTo(element, index);
-        updateSelection(nodes, index);
-        onIndex(index);
-        syncPeriod();
+        applyIndex(nearestIndex(element) + direction);
       });
     };
     bindWheel(hours, (index) => {
@@ -682,20 +795,44 @@ var TimePickerModal = class extends import_obsidian5.Modal {
       format.textContent = is12Hour ? "12-hour" : "24-hour";
       renderHours();
       syncPeriod();
+      window.requestAnimationFrame(() => alignWheel(hours, hourIndex()));
     });
     renderHours();
     syncPeriod();
+    // Wait for the modal's first layout pass before measuring scrollTop limits.
+    // `visibility` is held back by CSS until `is-ready`, avoiding a visible jump.
+    // A timeout fallback keeps the modal usable if rAF is throttled (for example
+    // while an Obsidian window is in the background).
+    let revealed = false;
+    const revealWheels = () => {
+      if (revealed) return;
+      revealed = true;
+      alignWheel(hours, hourIndex());
+      alignWheel(minutes, minute);
+      picker.addClass("is-ready");
+    };
+    window.requestAnimationFrame(() => window.requestAnimationFrame(revealWheels));
+    window.setTimeout(revealWheels, 120);
     new import_obsidian5.Setting(this.contentEl).addButton((button) => button.setButtonText("Use time").setCta().onClick(() => {
       this.onChoose(String(hour24).padStart(2, "0") + ":" + String(minute).padStart(2, "0"));
       this.close();
     })).addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()));
   }
 };
+/**
+ * Settings tab.
+ *
+ * Peculiarity: many controls save immediately (there is no Apply button), and
+ * some of them rebuild the whole tab because the Iqama rule dropdown changes
+ * which controls are visible. `refreshAtCurrentScroll()` exists to keep the
+ * settings pane from jumping to the top during those rebuilds.
+ */
 var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
+  /** Re-render the tab but restore the vertical tab's scroll offset on the next frame. */
   refreshAtCurrentScroll() {
     var _a;
     const pane = this.containerEl.closest(".vertical-tab-content");
@@ -831,6 +968,7 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
       void this.plugin.persistSettings();
     }).open();
   }
+  /** Validate a minute setting before persisting it; invalid input leaves the old value. */
   updateMinutes(value, key, min = 0, max = 1439) {
     const minutes = Number(value);
     if (!Number.isInteger(minutes) || minutes < min || minutes > max) return;
@@ -844,6 +982,7 @@ var SalahSettingsTab = class extends import_obsidian5.PluginSettingTab {
       void this.plugin.persistSettings();
     }));
   }
+  /** Build custom daily-time rows; the picker writes back into the in-progress add form. */
   addCustomTimes(container) {
     new import_obsidian5.Setting(container).setName("Custom daily times").setHeading();
     container.createEl("p", { text: "Add daily reminders or custom events (24-hour HH:mm)." });

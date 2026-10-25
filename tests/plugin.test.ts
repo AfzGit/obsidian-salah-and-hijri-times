@@ -5,6 +5,7 @@ import { dateAtLocation, hijriAdjustmentForNow, minutesAtLocation, shiftGregoria
 import { calculateLastThird, fastingMarkers, mapCalendarDates, parseCalendarDate, type CalendarApiDate } from "../src/calendar-data";
 import { buildConfiguredEvents } from "../src/schedule-events";
 import { validCoordinates } from "../src/coordinates";
+import { TIME_WHEEL_ROW_HEIGHT, TIME_WHEEL_SPACER_ROWS, TIME_WHEEL_VISIBLE_ROWS, clampTimeWheelIndex, timeWheelIndexFromScroll, timeWheelScrollTop } from "../src/time-wheel";
 import type { Schedule, Settings } from "../src/types";
 
 describe("clock and countdown math", () => {
@@ -34,6 +35,32 @@ describe("clock and countdown math", () => {
   });
 });
 
+describe("time wheel geometry", () => {
+  it("uses five visible rows with two spacer rows for exact centring", () => {
+    assert.equal(TIME_WHEEL_VISIBLE_ROWS, 5);
+    assert.equal(TIME_WHEEL_SPACER_ROWS, 2);
+    assert.equal(TIME_WHEEL_ROW_HEIGHT, 38);
+    assert.equal(timeWheelScrollTop(0), 0);
+    assert.equal(timeWheelScrollTop(1), 38);
+    assert.equal(timeWheelScrollTop(14), 532);
+    assert.equal(timeWheelScrollTop(23), 874);
+  });
+  it("maps any scroll offset back to the nearest row", () => {
+    assert.equal(timeWheelIndexFromScroll(0, 38, 24), 0);
+    assert.equal(timeWheelIndexFromScroll(18, 38, 24), 0);
+    assert.equal(timeWheelIndexFromScroll(20, 38, 24), 1);
+    assert.equal(timeWheelIndexFromScroll(874.4, 38, 24), 23);
+    assert.equal(timeWheelIndexFromScroll(-10, 38, 24), 0);
+    assert.equal(timeWheelIndexFromScroll(9999, 38, 24), 23);
+  });
+  it("clamps indices so a wheel cannot select past its first or last value", () => {
+    assert.equal(clampTimeWheelIndex(-3, 24), 0);
+    assert.equal(clampTimeWheelIndex(99, 24), 23);
+    assert.equal(clampTimeWheelIndex(5, 12), 5);
+    assert.equal(clampTimeWheelIndex(5, 0), 0);
+  });
+});
+
 describe("Hijri rollover policy", () => {
   it("applies the configured offset and increments at Maghrib", () => {
     assert.equal(hijriAdjustmentForNow(2, "maghrib", 1079, "18:00"), 2);
@@ -52,9 +79,9 @@ describe("Hijri rollover policy", () => {
     assert.equal(dateAtLocation(instant, "Asia/Kolkata"), "23-9-2026");
   });
   it("shifts Gregorian conversion requests across month, year, and leap-day boundaries", () => {
-    assert.equal(shiftGregorianDate("23-9-2026", 1), "24-9-2026");
-    assert.equal(shiftGregorianDate("31-12-2026", 1), "1-1-2027");
-    assert.equal(shiftGregorianDate("1-3-2024", -1), "29-2-2024");
+    assert.equal(shiftGregorianDate("23-9-2026", 1), "24-09-2026");
+    assert.equal(shiftGregorianDate("31-12-2026", 1), "01-01-2027");
+    assert.equal(shiftGregorianDate("1-3-2024", -1), "29-02-2024");
     assert.throws(() => shiftGregorianDate("31-2-2026", 1), /Invalid Gregorian/);
   });
 });
