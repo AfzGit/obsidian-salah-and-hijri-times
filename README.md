@@ -4,13 +4,17 @@
 
 An Obsidian plugin built for daily prayer times, Iqama, Hijri dates, calendar, and configurable reminders.
 
-## Compatibility
+<img width="603" height="391" alt="2026-10-27_18-55" src="https://github.com/user-attachments/assets/c9182329-ef16-47f1-93c2-1f72fb4b97e1" />
 
-The plugin supports Obsidian desktop and mobile. Runtime networking uses Obsidian's `requestUrl()` API; plugin runtime code does not use Node.js or Electron APIs. Calendar styles adapt to narrow screens. See [the architecture notes](docs/architecture.md) for implementation details.
+## Gallery
 
-## Install for development
-
-Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-times`, run **npm install** and **npm run build**, then enable the plugin in Obsidian. Run **npm run dev** to rebuild while editing. Obsidian loads the generated main.js file.
+| Calendar View | Commands |
+|---|---|
+| <img width="374" alt="Calendar View" src="https://github.com/user-attachments/assets/2eee42ca-c32b-4c35-aca2-c2f5a7960d53" /> | <img width="373" alt="Commands" src="https://github.com/user-attachments/assets/61511289-a262-4530-b568-18290cb257e6" /> |
+| Notifications | Iqama Support |
+| <img width="332" alt="Notifications" src="https://github.com/user-attachments/assets/5aa5d6a2-d1f6-4b21-bd83-0a982f6e4ddc" /> | <img width="378" alt="Iqama Support" src="https://github.com/user-attachments/assets/9d515dea-34e6-41ec-afe8-e480d08b0497" /> |
+| Customize Status Bar | Countdown Support |
+| <img width="323" alt="Customize Status Bar" src="https://github.com/user-attachments/assets/2f6a28ca-f038-4402-b7d4-2ab839824803" /> | <img width="335" alt="Countdown Support" src="https://github.com/user-attachments/assets/b5d13703-072b-449f-9cda-bc689a2366d7" /> |
 
 ## Features
 
@@ -82,6 +86,14 @@ Settings, coordinates, and notification deduplication history are stored in Obsi
 - `geocoding-api.open-meteo.com` for location search when the user searches for a place.
 
 The plugin does not use client-side telemetry. Requests include location coordinates when fetching schedules or calendar data.
+
+## Compatibility
+
+The plugin supports Obsidian desktop and mobile. Runtime networking uses Obsidian's `requestUrl()` API; plugin runtime code does not use Node.js or Electron APIs. Calendar styles adapt to narrow screens. See [the architecture notes](docs/architecture.md) for implementation details.
+
+## Install for development
+
+Copy this folder to the Obsidian plugin folder `.obsidian/plugins/salah-hijri-times`, run **npm install** and **npm run build**, then enable the plugin in Obsidian. Run **npm run dev** to rebuild while editing. Obsidian loads the generated main.js file.
 
 ## License
 
