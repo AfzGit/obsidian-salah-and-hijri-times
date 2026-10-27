@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8
+
+- Added a README gallery with screenshots of the calendar, commands, notifications, Iqama support, status bar customization, and countdown.
+- Moved **Compatibility** and **Install for development** below the feature documentation and added `todo.md` to `.gitignore`. No plugin code changed in this release.
+
 ## 1.0.7
 
 - Reworked the **Update Iqama times** editor into a fixed-layout table, so the prayer label, rule dropdown, time field, and buttons line up in the same columns on every row. Previously each dropdown sized itself to its selected option, which shifted the time field left or right.
